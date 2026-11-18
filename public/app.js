@@ -13,11 +13,7 @@ const products = [
 ];
 
 const packageNames = [
-  "Basic",
-  "Standard",
-  "Premium",
-  "Advanced",
-  "Ultimate"
+  "Basic","Standard","Premium","Advanced","Ultimate"
 ];
 
 let activeCategory = "All";
@@ -35,21 +31,24 @@ function renderProducts() {
       activeCategory === "All" ||
       product.category === activeCategory;
 
-    const matchesSearch =
+    return matchesCategory &&
       product.name.toLowerCase().includes(term);
-
-    return matchesCategory && matchesSearch;
   });
 
-  grid.innerHTML = filtered.map((product, index) => `
+  if (!filtered.length) {
+    grid.innerHTML = "<p>No products found.</p>";
+    return;
+  }
+
+  grid.innerHTML = filtered.map(product => `
     <article class="product-card">
       <div class="product-logo">${product.name.charAt(0)}</div>
       <p class="product-category">${product.category.toUpperCase()}</p>
       <h2>${product.name}</h2>
       <p>Choose the package that suits your needs.</p>
 
-      <label for="package-${index}">Select package</label>
-      <select id="package-${index}" class="package-select">
+      <label>Select package</label>
+      <select class="package-select">
         ${product.prices.map((price, i) => `
           <option value="${i}">
             ${packageNames[i]} — GH₵${price.toFixed(2)}
@@ -58,16 +57,11 @@ function renderProducts() {
       </select>
 
       <button class="btn primary buy-button"
-        data-product="${product.name}"
-        data-index="${index}">
+        data-product="${product.name}">
         Buy Now ↗
       </button>
     </article>
   `).join("");
-
-  if (filtered.length === 0) {
-    grid.innerHTML = "<p>No products found. Try another search.</p>";
-  }
 }
 
 if (search) {
@@ -76,9 +70,9 @@ if (search) {
 
 document.querySelectorAll(".category").forEach(button => {
   button.addEventListener("click", () => {
-    document.querySelectorAll(".category").forEach(item => {
-      item.classList.remove("active");
-    });
+    document.querySelectorAll(".category").forEach(item =>
+      item.classList.remove("active")
+    );
 
     button.classList.add("active");
     activeCategory = button.dataset.category;
@@ -87,7 +81,7 @@ document.querySelectorAll(".category").forEach(button => {
 });
 
 if (grid) {
-  grid.addEventListener("click", event => {
+  grid.addEventListener("click", async event => {
     const button = event.target.closest(".buy-button");
     if (!button) return;
 
@@ -95,26 +89,50 @@ if (grid) {
       item => item.name === button.dataset.product
     );
 
-    const index = Number(button.dataset.index);
+    if (!product) return;
+
     const select = button.parentElement.querySelector(".package-select");
-    const selectedIndex = Number(select.value);
+    const packageIndex = Number(select.value);
 
-    const selected = {
-      name: product.name,
-      package: packageNames[selectedIndex],
-      price: product.prices[selectedIndex]
-    };
+    const email = prompt("Enter your email address for Paystack checkout:");
 
-    sessionStorage.setItem(
-      "bhadexOrder",
-      JSON.stringify(selected)
-    );
+    if (!email) return;
 
-    alert(
-      `${selected.name}\n${selected.package}\nGH₵${selected.price.toFixed(2)}\n\nCheckout will be connected after the payment server is added.`
-    );
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      alert("Please enter a valid email address.");
+      return;
+    }
+
+    button.disabled = true;
+    button.textContent = "Connecting to Paystack...";
+
+    try {
+      const response = await fetch("/api/payments/initialize", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          email: email.trim(),
+          product: product.name,
+          packageIndex
+        })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.authorization_url) {
+        throw new Error(result.message || "Could not start payment.");
+      }
+
+      window.location.href = result.authorization_url;
+
+    } catch (error) {
+      alert(error.message || "Payment could not be started. Please try again.");
+      button.disabled = false;
+      button.textContent = "Buy Now ↗";
+    }
   });
 }
 
 renderProducts();
-                                                       

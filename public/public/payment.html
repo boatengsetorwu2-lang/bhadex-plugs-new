@@ -1,0 +1,87 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#080808">
+<title>Payment Status | BHADEX PLUGS</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <a class="brand" href="index.html">
+    <span class="brand-mark">B</span>
+    <span>BHADEX <span class="red">PLUGS</span>
+    <small>DIGITAL ACCESS, ELEVATED</small></span>
+  </a>
+  <nav>
+    <a href="index.html">Home</a>
+    <a href="marketplace.html">Marketplace</a>
+  </nav>
+</header>
+
+<main class="marketplace">
+  <section class="checkout-note">
+    <p class="eyebrow">BHADEX PAYMENT CENTRE</p>
+    <h2 id="paymentTitle">Checking your payment...</h2>
+    <p id="paymentMessage">Please wait while we confirm your transaction with Paystack.</p>
+    <p id="paymentReference"></p>
+    <a class="btn primary" href="marketplace.html">Return to Marketplace</a>
+  </section>
+</main>
+
+<footer>
+  <span>BHADEX PLUGS © 2026</span>
+  <a href="index.html">Home ↗</a>
+</footer>
+
+<script>
+(async function () {
+  const title = document.getElementById("paymentTitle");
+  const message = document.getElementById("paymentMessage");
+  const referenceText = document.getElementById("paymentReference");
+
+  const params = new URLSearchParams(window.location.search);
+  const reference = params.get("reference") || params.get("trxref");
+
+  if (!reference) {
+    title.textContent = "Payment reference not found";
+    message.textContent =
+      "Return to the marketplace or contact support if you completed a payment.";
+    return;
+  }
+
+  referenceText.textContent = "Reference: " + reference;
+
+  try {
+    const response = await fetch(
+      "/api/payments/verify/" + encodeURIComponent(reference)
+    );
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.message || "Verification failed.");
+    }
+
+    if (result.verified) {
+      title.textContent = "Payment successful!";
+      message.textContent =
+        "Your payment has been confirmed by Paystack. Thank you for choosing BHADEX PLUGS.";
+    } else {
+      title.textContent = "Payment not confirmed";
+      message.textContent =
+        "Paystack has not confirmed this transaction as successful. Please check your payment status before trying again.";
+    }
+  } catch (error) {
+    title.textContent = "Unable to verify payment";
+    message.textContent =
+      "We could not check your transaction right now. Please try again later or contact support.";
+  }
+})();
+</script>
+
+</body>
+</html>

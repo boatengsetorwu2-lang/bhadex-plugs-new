@@ -4,6 +4,7 @@ require("dotenv").config();
 const express = require("express");
 const axios = require("axios");
 const path = require("path");
+const fs = require("fs");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -13,6 +14,9 @@ app.use(express.static(path.join(__dirname, "public")));
 
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
 const BASE_URL = process.env.BASE_URL;
+
+// TEST-ONLY LOCAL ORDER STORAGE
+const ordersFile = path.join(__dirname, "orders.json");
 
 const products = {
   "Netflix": [35, 90, 170, 320, 450],
@@ -35,11 +39,35 @@ const packageNames = [
   "Ultimate"
 ];
 
+function loadOrders() {
+  try {
+    if (!fs.existsSync(ordersFile)) {
+      return [];
+    }
+
+    const data = fs.readFileSync(ordersFile, "utf8");
+    const orders = JSON.parse(data);
+
+    return Array.isArray(orders) ? orders : [];
+  } catch (error) {
+    console.error("Order file error:", error.message);
+    return [];
+  }
+}
+
+function saveOrders(orders) {
+  fs.writeFileSync(
+    ordersFile,
+    JSON.stringify(orders, null, 2),
+    "utf8"
+  );
+}
+
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-// Initialize payment securely.
+// Initialize payment
 app.post("/api/payments/initialize", async (req, res) => {
   try {
     if (!PAYSTACK_SECRET_KEY || !BASE_URL) {
@@ -87,9 +115,9 @@ app.post("/api/payments/initialize", async (req, res) => {
         email,
         amount: Math.round(price * 100),
         currency: "GHS",
-        callback_url: `${BASE_URL.replace(/\/+$/, "")}/payment.html`,
+        callback_url:
+          `${BASE_URL.replace(/\/+$/, "")}/payment.html`,
 
-        // Server-generated order information.
         metadata: {
           bhadex_product: product,
           bhadex_package: packageName,
@@ -112,8 +140,10 @@ app.post("/api/payments/initialize", async (req, res) => {
     }
 
     res.json({
-      authorization_url: response.data.data.authorization_url,
-      reference: response.data.data.reference
+      authorization_url:
+        response.data.data.authorization_url,
+      reference:
+        response.data.data.reference
     });
 
   } catch (error) {
@@ -128,7 +158,7 @@ app.post("/api/payments/initialize", async (req, res) => {
   }
 });
 
-// Verify payment against the original server-generated order metadata.
+// Verify payment and record successful test orders
 app.get("/api/payments/verify/:reference", async (req, res) => {
   try {
     if (!PAYSTACK_SECRET_KEY) {
@@ -164,6 +194,7 @@ app.get("/api/payments/verify/:reference", async (req, res) => {
     }
 
     const product = payment.metadata?.bhadex_product;
+
     const packageIndex = Number(
       payment.metadata?.bhadex_package_index
     );
@@ -183,20 +214,51 @@ app.get("/api/payments/verify/:reference", async (req, res) => {
       payment.currency === "GHS" &&
       payment.reference === reference &&
       validOrder &&
-      Number(payment.amount) === Math.round(expectedPrice * 100);
+      Number(payment.amount) ===
+        Math.round(expectedPrice * 100);
+
+    if (!validPayment) {
+      return res.json({
+        verified: false,
+        status: payment.status,
+        reference: payment.reference,
+        currency: payment.currency
+      });
+    }
+
+    // Avoid duplicate order records for the same reference.
+    let orders = loadOrders();
+
+    let order = orders.find(
+      item => item.reference === reference
+    );
+
+    if (!order) {
+      order = {
+        reference: payment.reference,
+        product,
+        package: expectedPackage,
+        amount: expectedPrice,
+        currency: "GHS",
+        status: "PAID",
+        createdAt: new Date().toISOString()
+      };
+
+      orders.push(order);
+      saveOrders(orders);
+
+      console.log("New verified order recorded:", reference);
+    }
 
     res.json({
-      verified: Boolean(validPayment),
-      status: payment.status,
-      reference: payment.reference,
-      currency: payment.currency,
-      ...(validPayment
-        ? {
-            product,
-            package: expectedPackage,
-            amount: expectedPrice
-          }
-        : {})
+      verified: true,
+      status: "success",
+      reference: order.reference,
+      product: order.product,
+      package: order.package,
+      amount: order.amount,
+      currency: order.currency,
+      orderStatus: order.status
     });
 
   } catch (error) {
@@ -211,7 +273,18 @@ app.get("/api/payments/verify/:reference", async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`BHADEX PLUGS server running on port ${PORT}`);
+// TEST-ONLY: display order count (not customer order details)
+app.get("/api/orders/count", (req, res) => {
+  const orders = loadOrders();
+
+  res.json({
+    totalOrders: orders.length
+  });
 });
-                    
+
+app.listen(PORT, () => {
+  console.log(
+    `BHADEX PLUGS server running on port ${PORT}`
+  );
+});
+    

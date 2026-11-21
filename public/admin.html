@@ -5,15 +5,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>BHADEX PLUGS | Admin Dashboard</title>
-
   <style>
     :root {
       --red: #ff263d;
       --dark: #080808;
-      --panel: #121212;
-      --white: #fff;
-      --muted: #999;
+      --panel: #141414;
       --border: rgba(255,255,255,.12);
+      --muted: #aaa;
+      --white: #fff;
     }
 
     * {
@@ -30,7 +29,7 @@
     }
 
     .container {
-      max-width: 1250px;
+      max-width: 1400px;
       margin: auto;
     }
 
@@ -48,14 +47,14 @@
     }
 
     h2 {
-      font-size: 20px;
       margin-bottom: 18px;
+      font-size: 20px;
     }
 
     .muted {
       color: var(--muted);
-      font-size: 13px;
       margin-top: 7px;
+      font-size: 13px;
     }
 
     button, input, select {
@@ -64,25 +63,26 @@
 
     button {
       border: 0;
-      border-radius: 7px;
-      padding: 11px 16px;
-      background: var(--red);
-      color: white;
       cursor: pointer;
+      border-radius: 7px;
+      padding: 11px 15px;
       font-weight: bold;
     }
 
-    button:hover {
-      opacity: .85;
-    }
-
-    button:disabled {
-      opacity: .5;
-      cursor: not-allowed;
+    .primary {
+      background: var(--red);
+      color: white;
     }
 
     .secondary {
       background: #292929;
+      color: white;
+      border: 1px solid var(--border);
+    }
+
+    .logout {
+      background: #292929;
+      color: white;
     }
 
     .panel {
@@ -90,20 +90,15 @@
       border: 1px solid var(--border);
       border-radius: 12px;
       padding: 22px;
-      margin-bottom: 22px;
-    }
-
-    .login-box {
-      max-width: 420px;
-      margin: 90px auto;
+      margin-bottom: 24px;
     }
 
     input, select {
-      background: #080808;
+      background: #090909;
       color: white;
       border: 1px solid var(--border);
-      border-radius: 7px;
       padding: 12px;
+      border-radius: 7px;
       outline: none;
       width: 100%;
     }
@@ -112,17 +107,23 @@
       border-color: var(--red);
     }
 
+    .login-box {
+      max-width: 420px;
+      margin: 80px auto;
+    }
+
     .login-box input {
-      margin: 10px 0 15px;
+      margin: 12px 0;
     }
 
     .login-box button {
       width: 100%;
+      margin-top: 8px;
     }
 
     .stats {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
       gap: 15px;
       margin-bottom: 25px;
     }
@@ -142,6 +143,7 @@
 
     .stat h3 {
       font-size: 25px;
+      color: var(--red);
     }
 
     .filters {
@@ -156,9 +158,9 @@
     }
 
     table {
-      width: 100%;
       border-collapse: collapse;
-      min-width: 950px;
+      width: 100%;
+      min-width: 1050px;
     }
 
     th, td {
@@ -171,7 +173,7 @@
 
     th {
       color: var(--muted);
-      font-weight: 600;
+      font-size: 12px;
     }
 
     .status {
@@ -184,36 +186,35 @@
     }
 
     .paid, .delivered {
-      color: #55d995;
-      background: rgba(85,217,149,.12);
+      color: #64e89a;
     }
 
     .pending {
-      color: #f4c15d;
-      background: rgba(244,193,93,.12);
+      color: #ffd166;
     }
 
     .processing {
-      color: #73b7ff;
-      background: rgba(115,183,255,.12);
+      color: #74baff;
     }
 
     .cancelled, .failed {
-      color: #ff6878;
-      background: rgba(255,104,120,.12);
+      color: #ff7180;
     }
 
-    .action-cell {
-      min-width: 180px;
+    .action {
+      display: flex;
+      gap: 7px;
+      min-width: 210px;
     }
 
-    .action-cell select {
-      margin-bottom: 7px;
-      min-width: 150px;
+    .action select {
+      min-width: 130px;
+      padding: 8px;
+      font-size: 12px;
     }
 
-    .save-btn {
-      padding: 8px 12px;
+    .action button {
+      padding: 8px 10px;
       font-size: 12px;
     }
 
@@ -223,19 +224,11 @@
       font-size: 13px;
     }
 
-    .error {
-      color: #ff6878;
-    }
-
-    .success {
-      color: #55d995;
-    }
-
     .hidden {
-      display: none !important;
+      display: none;
     }
 
-    @media (max-width: 650px) {
+    @media(max-width: 650px) {
       body {
         padding: 14px;
       }
@@ -244,8 +237,8 @@
         grid-template-columns: 1fr;
       }
 
-      .login-box {
-        margin: 45px auto;
+      .panel {
+        padding: 15px;
       }
     }
   </style>
@@ -254,33 +247,32 @@
 <body>
   <div class="container">
 
-    <section id="loginSection" class="panel login-box">
+    <section id="loginSection" class="login-box panel">
       <h1>BHADEX <span>PLUGS</span></h1>
       <p class="muted">Administrator login</p>
 
       <form id="loginForm">
-        <label for="adminPassword">Admin password</label>
         <input
           type="password"
-          id="adminPassword"
+          id="password"
           placeholder="Enter admin password"
           required
         >
-        <button type="submit" id="loginButton">Login</button>
+        <button class="primary" type="submit">Login</button>
       </form>
 
       <p id="loginMessage" class="message"></p>
     </section>
 
-    <section id="dashboardSection" class="hidden">
+    <section id="dashboard" class="hidden">
 
       <header>
         <div>
           <h1>BHADEX <span>PLUGS</span></h1>
-          <p class="muted">Order management dashboard</p>
+          <p class="muted">Order management and delivery tracking</p>
         </div>
 
-        <button id="logoutButton" class="secondary">Logout</button>
+        <button class="logout" id="logoutBtn">Logout</button>
       </header>
 
       <div class="stats">
@@ -320,7 +312,7 @@
         </div>
       </div>
 
-      <div class="panel">
+      <section class="panel">
         <h2>Customer Orders</h2>
 
         <div class="filters">
@@ -331,17 +323,17 @@
           >
 
           <select id="statusFilter">
-            <option value="">All delivery statuses</option>
+            <option value="">All Delivery Statuses</option>
             <option value="PENDING">Pending</option>
             <option value="PROCESSING">Processing</option>
             <option value="DELIVERED">Delivered</option>
             <option value="CANCELLED">Cancelled</option>
           </select>
 
-          <button id="refreshButton" class="secondary">Refresh</button>
+          <button class="secondary" id="refreshBtn">Refresh</button>
         </div>
 
-        <p id="ordersMessage" class="message"></p>
+        <p id="ordersMessage" class="message">Loading orders...</p>
 
         <div class="table-wrap">
           <table>
@@ -359,63 +351,56 @@
               </tr>
             </thead>
 
-            <tbody id="ordersTable">
-              <tr>
-                <td colspan="9">Loading orders...</td>
-              </tr>
-            </tbody>
+            <tbody id="ordersTable"></tbody>
           </table>
         </div>
-      </div>
-
+      </section>
     </section>
   </div>
 
   <script>
     const loginSection = document.getElementById("loginSection");
-    const dashboardSection = document.getElementById("dashboardSection");
+    const dashboard = document.getElementById("dashboard");
     const loginForm = document.getElementById("loginForm");
     const loginMessage = document.getElementById("loginMessage");
     const ordersMessage = document.getElementById("ordersMessage");
     const ordersTable = document.getElementById("ordersTable");
 
-    const statusOptions = [
-      "PENDING",
-      "PROCESSING",
-      "DELIVERED",
-      "CANCELLED"
-    ];
+    let loadingOrders = false;
 
-    function showMessage(element, message, type = "") {
-      element.textContent = message;
-      element.className = "message " + type;
+    function showDashboard() {
+      loginSection.classList.add("hidden");
+      dashboard.classList.remove("hidden");
     }
 
-    function formatMoney(amount) {
-      return "GH₵" + Number(amount || 0).toFixed(2);
+    function showLogin(message = "") {
+      dashboard.classList.add("hidden");
+      loginSection.classList.remove("hidden");
+      loginMessage.textContent = message;
     }
 
-    function formatDate(date) {
-      if (!date) return "—";
+    function money(value) {
+      return "GH₵" + Number(value || 0).toFixed(2);
+    }
 
-      const parsed = new Date(date);
+    function formatDate(value) {
+      if (!value) return "Not delivered";
 
-      if (Number.isNaN(parsed.getTime())) return "—";
+      const date = new Date(value);
 
-      return parsed.toLocaleString();
+      if (Number.isNaN(date.getTime())) return "Unknown";
+
+      return date.toLocaleString();
     }
 
     function makeStatus(text) {
       const span = document.createElement("span");
-      const value = String(text || "UNKNOWN").toUpperCase();
-
-      span.className = "status " + value.toLowerCase();
-      span.textContent = value;
-
+      span.className = "status " + String(text || "").toLowerCase();
+      span.textContent = text || "UNKNOWN";
       return span;
     }
 
-    async function apiRequest(url, options = {}) {
+    async function request(url, options = {}) {
       const response = await fetch(url, {
         credentials: "same-origin",
         ...options,
@@ -425,186 +410,49 @@
       });
 
       if (response.status === 401) {
-        showLogin();
-        throw new Error("Your session has expired. Please log in again.");
+        showLogin("Your session has expired. Please log in again.");
+        throw new Error("Session expired");
       }
 
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        throw new Error(data.message || data.error || "Request failed.");
+        throw new Error(data.error || data.message || "Request failed");
       }
 
       return data;
     }
 
-    function showLogin() {
-      dashboardSection.classList.add("hidden");
-      loginSection.classList.remove("hidden");
-    }
-
-    function showDashboard() {
-      loginSection.classList.add("hidden");
-      dashboardSection.classList.remove("hidden");
-      loadOrders();
-    }
-
     loginForm.addEventListener("submit", async (event) => {
       event.preventDefault();
 
-      const button = document.getElementById("loginButton");
-      button.disabled = true;
-      button.textContent = "Logging in...";
-
-      showMessage(loginMessage, "");
+      loginMessage.textContent = "Signing in...";
 
       try {
-        await apiRequest("/api/admin/login", {
+        await request("/api/admin/login", {
           method: "POST",
           headers: {
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            password: document.getElementById("adminPassword").value
+            password: document.getElementById("password").value
           })
         });
 
-        document.getElementById("adminPassword").value = "";
+        document.getElementById("password").value = "";
         showDashboard();
+        await loadOrders();
 
       } catch (error) {
-        showMessage(loginMessage, error.message, "error");
-      } finally {
-        button.disabled = false;
-        button.textContent = "Login";
+        loginMessage.textContent = error.message;
       }
     });
-
-    document.getElementById("logoutButton").addEventListener("click", async () => {
-      try {
-        await apiRequest("/api/admin/logout", {
-          method: "POST"
-        });
-      } catch (error) {
-        // Return to login even if the session has already expired.
-      }
-
-      showLogin();
-    });
-
-    function updateStats(stats = {}) {
-      document.getElementById("totalOrders").textContent =
-        stats.totalOrders ?? 0;
-
-      document.getElementById("paidOrders").textContent =
-        stats.paidOrders ?? 0;
-
-      document.getElementById("totalRevenue").textContent =
-        formatMoney(stats.totalRevenue);
-
-      document.getElementById("pendingOrders").textContent =
-        stats.pendingOrders ?? 0;
-
-      document.getElementById("processingOrders").textContent =
-        stats.processingOrders ?? 0;
-
-      document.getElementById("deliveredOrders").textContent =
-        stats.deliveredOrders ?? 0;
-
-      document.getElementById("cancelledOrders").textContent =
-        stats.cancelledOrders ?? 0;
-    }
-
-    function createCell(value) {
-      const cell = document.createElement("td");
-      cell.textContent = value == null || value === "" ? "—" : String(value);
-      return cell;
-    }
-
-    function createOrderRow(order) {
-      const row = document.createElement("tr");
-
-      row.appendChild(createCell(order.reference));
-      row.appendChild(createCell(order.customer_email));
-      row.appendChild(createCell(order.product));
-      row.appendChild(createCell(order.package));
-      row.appendChild(createCell(formatMoney(order.amount)));
-
-      const paymentCell = document.createElement("td");
-      paymentCell.appendChild(makeStatus(order.status));
-      row.appendChild(paymentCell);
-
-      const deliveryCell = document.createElement("td");
-      deliveryCell.appendChild(makeStatus(order.fulfillment_status));
-      row.appendChild(deliveryCell);
-
-      row.appendChild(createCell(formatDate(order.delivered_at)));
-
-      const actionCell = document.createElement("td");
-      actionCell.className = "action-cell";
-
-      const select = document.createElement("select");
-
-      statusOptions.forEach((status) => {
-        const option = document.createElement("option");
-        option.value = status;
-        option.textContent = status;
-        select.appendChild(option);
-      });
-
-      select.value = statusOptions.includes(
-        String(order.fulfillment_status || "").toUpperCase()
-      ) ? String(order.fulfillment_status).toUpperCase() : "PENDING";
-
-      const saveButton = document.createElement("button");
-      saveButton.textContent = "Save Status";
-      saveButton.className = "save-btn";
-
-      saveButton.addEventListener("click", async () => {
-        saveButton.disabled = true;
-        saveButton.textContent = "Saving...";
-
-        try {
-          await apiRequest(
-            "/api/admin/orders/" +
-            encodeURIComponent(order.reference) +
-            "/status",
-            {
-              method: "PATCH",
-              headers: {
-                "Content-Type": "application/json"
-              },
-              body: JSON.stringify({
-                fulfillmentStatus: select.value
-              })
-            }
-          );
-
-          showMessage(
-            ordersMessage,
-            "Delivery status updated successfully.",
-            "success"
-          );
-
-          await loadOrders();
-
-        } catch (error) {
-          showMessage(ordersMessage, error.message, "error");
-        } finally {
-          saveButton.disabled = false;
-          saveButton.textContent = "Save Status";
-        }
-      });
-
-      actionCell.appendChild(select);
-      actionCell.appendChild(saveButton);
-      row.appendChild(actionCell);
-
-      return row;
-    }
 
     async function loadOrders() {
-      showMessage(ordersMessage, "Loading orders...");
+      if (loadingOrders) return;
+
+      loadingOrders = true;
+      ordersMessage.textContent = "Loading orders...";
       ordersTable.replaceChildren();
 
       const search = document.getElementById("searchInput").value.trim();
@@ -616,44 +464,146 @@
       if (status) params.set("status", status);
 
       try {
-        const data = await apiRequest(
+        const data = await request(
           "/api/admin/orders?" + params.toString()
         );
 
-        updateStats(data.stats || {});
+        const stats = data.stats || {};
 
-        const orders = Array.isArray(data.orders) ? data.orders : [];
+        document.getElementById("totalOrders").textContent =
+          stats.totalOrders || 0;
+
+        document.getElementById("paidOrders").textContent =
+          stats.paidOrders || 0;
+
+        document.getElementById("totalRevenue").textContent =
+          money(stats.totalRevenue);
+
+        document.getElementById("pendingOrders").textContent =
+          stats.pendingOrders || 0;
+
+        document.getElementById("processingOrders").textContent =
+          stats.processingOrders || 0;
+
+        document.getElementById("deliveredOrders").textContent =
+          stats.deliveredOrders || 0;
+
+        document.getElementById("cancelledOrders").textContent =
+          stats.cancelledOrders || 0;
+
+        const orders = data.orders || [];
 
         if (orders.length === 0) {
-          const row = document.createElement("tr");
-          const cell = createCell("No orders found.");
-          cell.colSpan = 9;
-          row.appendChild(cell);
-          ordersTable.appendChild(row);
-        } else {
-          orders.forEach((order) => {
-            ordersTable.appendChild(createOrderRow(order));
-          });
+          ordersMessage.textContent = "No orders found.";
+          return;
         }
 
-        showMessage(
-          ordersMessage,
-          orders.length + " order(s) displayed.",
-          "success"
-        );
+        ordersMessage.textContent = orders.length + " order(s) found.";
+
+        orders.forEach((order) => {
+          const row = document.createElement("tr");
+
+          function cell(value) {
+            const td = document.createElement("td");
+            td.textContent = value == null ? "-" : String(value);
+            row.appendChild(td);
+            return td;
+          }
+
+          cell(order.reference);
+          cell(order.customer_email);
+          cell(order.product);
+          cell(order.package);
+          cell(money(order.amount));
+
+          const paymentCell = document.createElement("td");
+          paymentCell.appendChild(makeStatus(order.status));
+          row.appendChild(paymentCell);
+
+          const deliveryCell = document.createElement("td");
+          deliveryCell.appendChild(
+            makeStatus(order.fulfillment_status || "PENDING")
+          );
+          row.appendChild(deliveryCell);
+
+          cell(formatDate(order.delivered_at));
+
+          const actionCell = document.createElement("td");
+          const action = document.createElement("div");
+          action.className = "action";
+
+          const select = document.createElement("select");
+
+          const statuses = [
+            "PENDING",
+            "PROCESSING",
+            "DELIVERED",
+            "CANCELLED"
+          ];
+
+          statuses.forEach((statusValue) => {
+            const option = document.createElement("option");
+            option.value = statusValue;
+            option.textContent = statusValue;
+            select.appendChild(option);
+          });
+
+          select.value = order.fulfillment_status || "PENDING";
+
+          const saveButton = document.createElement("button");
+          saveButton.className = "primary";
+          saveButton.textContent = "Save";
+
+          saveButton.addEventListener("click", async () => {
+            saveButton.disabled = true;
+            saveButton.textContent = "Saving...";
+
+            try {
+              await request(
+                "/api/admin/orders/" +
+                encodeURIComponent(order.reference) +
+                "/status",
+                {
+                  method: "PATCH",
+                  headers: {
+                    "Content-Type": "application/json"
+                  },
+                  body: JSON.stringify({
+                    fulfillmentStatus: select.value
+                  })
+                }
+              );
+
+              ordersMessage.textContent =
+                "Delivery status updated successfully.";
+
+              await loadOrders();
+
+            } catch (error) {
+              ordersMessage.textContent = error.message;
+              saveButton.disabled = false;
+              saveButton.textContent = "Save";
+            }
+          });
+
+          action.appendChild(select);
+          action.appendChild(saveButton);
+          actionCell.appendChild(action);
+          row.appendChild(actionCell);
+
+          ordersTable.appendChild(row);
+        });
 
       } catch (error) {
-        showMessage(ordersMessage, error.message, "error");
-
-        const row = document.createElement("tr");
-        const cell = createCell("Unable to load orders.");
-        cell.colSpan = 9;
-        row.appendChild(cell);
-        ordersTable.appendChild(row);
+        if (error.message !== "Session expired") {
+          ordersMessage.textContent = error.message;
+        }
+      } finally {
+        loadingOrders = false;
       }
     }
 
-    document.getElementById("refreshButton").addEventListener(
+    document.getElementById("refreshBtn").addEventListener(
       "click",
       loadOrders
     );
@@ -673,16 +623,20 @@
       }
     );
 
-    async function checkSession() {
-      try {
-        await apiRequest("/api/admin/orders");
-        showDashboard();
-      } catch (error) {
+    document.getElementById("logoutBtn").addEventListener(
+      "click",
+      async () => {
+        try {
+          await request("/api/admin/logout", {
+            method: "POST"
+          });
+        } catch (error) {
+          // Return to login even if the session has already expired.
+        }
+
         showLogin();
       }
-    }
-
-    checkSession();
+    );
   </script>
 </body>
 </html>

@@ -6,49 +6,16 @@ const axios = require("axios");
 const path = require("path");
 const crypto = require("crypto");
 const session = require("express-session");
-const pgSession = require("connect-pg-simple")(session);
+const PgSession = require("connect-pg-simple")(session);
 const helmet = require("helmet");
-const { rateLimit } = require("express-rate-limit");
+const rateLimit = require("express-rate-limit");
 
-const {
-  pool,
-  initializeDatabase
-} = require("./database");
+const { pool, initializeDatabase } = require("./database");
 
 const app = express();
-const PORT = process.env.PORT || 3000;
-
-const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
-const BASE_URL = process.env.BASE_URL;
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
-const SESSION_SECRET = process.env.SESSION_SECRET;
+const PORT = process.env.PORT || 10000;
 
 app.set("trust proxy", 1);
-
-// ==================================================
-// PRODUCTS
-// ==================================================
-
-const products = {
-  "Netflix": [35, 90, 170, 320, 450],
-  "YouTube Premium": [20, 55, 100, 190, 260],
-  "Spotify Premium": [18, 50, 95, 180, 250],
-  "Canva": [25, 70, 135, 250, 350],
-  "ChatGPT": [45, 125, 240, 460, 620],
-  "Microsoft 365": [30, 85, 160, 300, 420],
-  "Disney+": [25, 70, 135, 250, 350],
-  "Prime Video": [20, 55, 105, 200, 280],
-  "Telegram Premium": [20, 55, 105, 200, 280],
-  "Google One": [15, 40, 75, 140, 200]
-};
-
-const packageNames = [
-  "Basic",
-  "Standard",
-  "Premium",
-  "Advanced",
-  "Ultimate"
-];
 
 const fulfillmentStatuses = [
   "PENDING",
@@ -57,19 +24,7 @@ const fulfillmentStatuses = [
   "CANCELLED"
 ];
 
-// ==================================================
-// SECURITY
-// ==================================================
-
-app.use(helmet({
-  contentSecurityPolicy: false
-}));
-
-// ==================================================
-// PAYSTACK WEBHOOK
-// Must come before express.json()
-// ==================================================
-
+// Paystack webhook must receive the original request body.
 app.post(
   "/api/payments/webhook",
   express.raw({ type: "application/json" }),
@@ -77,177 +32,130 @@ app.post(
     try {
       const signature = req.headers["x-paystack-signature"];
 
-      if (
-        !PAYSTACK_SECRET_KEY ||
-        typeof signature !== "string" ||
-        !Buffer.isBuffer(req.body)
-      ) {
-        return res.sendStatus(401);
-      }
-
       const expectedSignature = crypto
-        .createHmac("sha512", PAYSTACK_SECRET_KEY)
+        .createHmac("sha512", process.env.PAYSTACK_SECRET_KEY || "")
         .update(req.body)
         .digest("hex");
 
-      const received = Buffer.from(signature, "hex");
-      const expected = Buffer.from(expectedSignature, "hex");
-
       if (
-        received.length !== expected.length ||
-        !crypto.timingSafeEqual(received, expected)
+        !signature ||
+        !crypto.timingSafeEqual(
+          Buffer.from(signature),
+          Buffer.from(expectedSignature)
+        )
       ) {
         return res.sendStatus(401);
       }
 
-      const event = JSON.parse(req.body.toString("utf8"));
+      const event = JSON.parse(req.body.toString());
 
       if (event.event !== "charge.success") {
         return res.sendStatus(200);
       }
 
-      const reference = event.data?.reference;
-
-      if (
-        typeof reference !== "string" ||
-        !/^[a-zA-Z0-9_-]{1,100}$/.test(reference)
-      ) {
-        return res.sendStatus(400);
-      }
+      const reference = event.data.reference;
 
       const verification = await axios.get(
         `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
         {
           headers: {
-            Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`
-          },
-          timeout: 15000
+            Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`
+          }
         }
       );
 
-      const payment = verification.data?.data;
+      const payment = verification.data.data;
 
       if (
-        !verification.data?.status ||
-        !payment ||
         payment.status !== "success" ||
-        payment.reference !== reference ||
-        payment.currency !== "GHS"
+        payment.currency !== "GHS" ||
+        payment.amount !== event.data.amount
       ) {
         return res.sendStatus(400);
       }
 
-      const product = payment.metadata?.bhadex_product;
+      const metadata = payment.metadata || {};
+      const product = metadata.product;
+      const packageName = metadata.package;
 
-      const packageIndex = Number(
-        payment.metadata?.bhadex_package_index
-      );
-
-      const expectedPackage = packageNames[packageIndex];
-      const expectedPrice = products[product]?.[packageIndex];
-
-      const validOrder =
-        typeof expectedPrice === "number" &&
-        Number.isInteger(packageIndex) &&
-        packageIndex >= 0 &&
-        packageIndex < packageNames.length &&
-        payment.metadata?.bhadex_package === expectedPackage &&
-        Number(payment.amount) === Math.round(expectedPrice * 100);
-
-      if (!validOrder) {
-        console.error("Webhook order mismatch:", reference);
+      if (!product || !packageName) {
         return res.sendStatus(400);
       }
 
       await pool.query(
-        `INSERT INTO orders
-          (reference, customer_email, product, package, amount, currency, status)
-         VALUES ($1, $2, $3, $4, $5, $6, 'PAID')
-         ON CONFLICT (reference) DO NOTHING`,
+        `INSERT INTO orders (
+          reference,
+          customer_email,
+          product,
+          package,
+          amount,
+          currency,
+          status,
+          fulfillment_status
+        )
+        VALUES ($1, $2, $3, $4, $5, 'GHS', 'PAID', 'PENDING')
+        ON CONFLICT (reference) DO NOTHING`,
         [
           reference,
           payment.customer?.email || null,
           product,
-          expectedPackage,
-          expectedPrice,
-          "GHS"
+          packageName,
+          payment.amount / 100
         ]
       );
-
-      console.log("Paystack webhook recorded:", reference);
 
       return res.sendStatus(200);
 
     } catch (error) {
-      console.error(
-        "Webhook error:",
-        error.response?.data || error.message
-      );
-
+      console.error("Paystack webhook error:", error.message);
       return res.sendStatus(500);
     }
   }
 );
 
-// ==================================================
-// GENERAL MIDDLEWARE
-// ==================================================
-
 app.use(express.json({ limit: "10kb" }));
+
+app.use(
+  helmet({
+    contentSecurityPolicy: false
+  })
+);
 
 app.use(express.static(path.join(__dirname, "public")));
 
-// ==================================================
-// SESSION CONFIGURATION
-// ==================================================
-
-if (!ADMIN_PASSWORD || !SESSION_SECRET) {
-  throw new Error("Admin security environment variables are missing.");
+if (!process.env.ADMIN_PASSWORD || !process.env.SESSION_SECRET) {
+  throw new Error("ADMIN_PASSWORD and SESSION_SECRET must be configured.");
 }
 
-if (SESSION_SECRET.length < 32) {
-  throw new Error("SESSION_SECRET must contain at least 32 characters.");
+if (process.env.SESSION_SECRET.length < 32) {
+  throw new Error("SESSION_SECRET must be at least 32 characters.");
 }
 
 app.use(
   session({
-    store: new pgSession({
+    store: new PgSession({
       pool,
       tableName: "admin_sessions",
       createTableIfMissing: true
     }),
-
-    name: "bhadex_admin_session",
-    secret: SESSION_SECRET,
+    secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
-
     cookie: {
       httpOnly: true,
-      secure: "auto",
+      secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
-      maxAge: 1000 * 60 * 60 * 4
+      maxAge: 4 * 60 * 60 * 1000
     }
   })
 );
 
-// ==================================================
-// LOGIN RATE LIMITER
-// ==================================================
-
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 5,
-  standardHeaders: "draft-7",
-  legacyHeaders: false,
-  message: {
-    message: "Too many login attempts. Try again later."
-  }
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false
 });
-
-// ==================================================
-// ADMIN AUTHENTICATION
-// ==================================================
 
 function safePasswordCompare(input, correct) {
   const inputHash = crypto
@@ -264,209 +172,221 @@ function safePasswordCompare(input, correct) {
 }
 
 function requireAdmin(req, res, next) {
-  if (!req.session || req.session.isAdmin !== true) {
+  if (!req.session || !req.session.isAdmin) {
     return res.status(401).json({
-      message: "Administrator login required."
+      error: "Please log in again."
     });
   }
 
   next();
 }
 
-app.post(
-  "/api/admin/login",
-  loginLimiter,
-  async (req, res) => {
-    try {
-      const password = req.body?.password;
+// Admin login
+app.post("/api/admin/login", loginLimiter, async (req, res) => {
+  try {
+    const password = req.body?.password;
 
-      if (
-        typeof password !== "string" ||
-        !safePasswordCompare(password, ADMIN_PASSWORD)
-      ) {
-        return res.status(401).json({
-          message: "Incorrect administrator password."
+    if (
+      typeof password !== "string" ||
+      !safePasswordCompare(password, process.env.ADMIN_PASSWORD)
+    ) {
+      return res.status(401).json({
+        error: "Incorrect admin password."
+      });
+    }
+
+    req.session.regenerate((error) => {
+      if (error) {
+        console.error("Session error:", error.message);
+        return res.status(500).json({
+          error: "Unable to create session."
         });
       }
 
-      req.session.regenerate((error) => {
-        if (error) {
+      req.session.isAdmin = true;
+
+      req.session.save((saveError) => {
+        if (saveError) {
           return res.status(500).json({
-            message: "Unable to create administrator session."
+            error: "Unable to save session."
           });
         }
 
-        req.session.isAdmin = true;
-
-        req.session.save((saveError) => {
-          if (saveError) {
-            return res.status(500).json({
-              message: "Unable to save administrator session."
-            });
-          }
-
-          res.json({
-            success: true,
-            message: "Administrator login successful."
-          });
+        return res.json({
+          success: true,
+          message: "Login successful."
         });
       });
+    });
 
-    } catch (error) {
-      console.error("Admin login error:", error.message);
-
-      res.status(500).json({
-        message: "Login service unavailable."
-      });
-    }
+  } catch (error) {
+    console.error("Admin login error:", error.message);
+    return res.status(500).json({
+      error: "Login failed."
+    });
   }
-);
+});
 
-// ==================================================
-// ADMIN LOGOUT
-// ==================================================
-
+// Admin logout
 app.post("/api/admin/logout", requireAdmin, (req, res) => {
-  req.session.destroy((error) => {
-    if (error) {
-      return res.status(500).json({
-        message: "Unable to log out."
-      });
-    }
-
-    res.clearCookie("bhadex_admin_session", {
-      httpOnly: true,
-      secure: "auto",
-      sameSite: "strict"
-    });
-
-    res.json({
-      success: true,
-      message: "Logged out successfully."
-    });
+  req.session.destroy(() => {
+    res.clearCookie("connect.sid");
+    return res.json({ success: true });
   });
 });
 
-// ==================================================
-// ADMIN ORDER MANAGEMENT
-// ==================================================
-
-app.get("/api/admin/orders", requireAdmin, async (req, res) => {
+// Customer order tracking
+app.get("/api/orders/track/:reference", async (req, res) => {
   try {
-    const status = String(req.query.status || "ALL").toUpperCase();
-    const search = String(req.query.search || "").trim().slice(0, 100);
+    const reference = String(req.params.reference || "").trim();
 
-    if (
-      status !== "ALL" &&
-      !fulfillmentStatuses.includes(status)
-    ) {
+    if (!reference || reference.length > 100) {
       return res.status(400).json({
-        message: "Invalid delivery status."
+        error: "Please enter a valid order reference."
       });
     }
 
     const result = await pool.query(
       `SELECT
-        id,
         reference,
-        customer_email,
         product,
         package,
         amount,
         currency,
         status,
         fulfillment_status,
-        delivered_at,
-        fulfillment_updated_at,
         created_at,
-        updated_at
+        delivered_at
        FROM orders
-       WHERE
-         ($1 = 'ALL' OR fulfillment_status = $1)
-         AND (
-           $2 = ''
-           OR reference ILIKE '%' || $2 || '%'
-           OR COALESCE(customer_email, '') ILIKE '%' || $2 || '%'
-           OR product ILIKE '%' || $2 || '%'
-         )
-       ORDER BY created_at DESC
-       LIMIT 200`,
-      [status, search]
+       WHERE reference = $1
+       LIMIT 1`,
+      [reference]
     );
 
-    const statsResult = await pool.query(
-      `SELECT
-        COUNT(*) AS total_orders,
-        COUNT(*) FILTER (
-          WHERE status = 'PAID'
-        ) AS paid_orders,
-        COALESCE(
-          SUM(amount) FILTER (WHERE status = 'PAID'),
-          0
-        ) AS total_revenue,
-        COUNT(*) FILTER (
-          WHERE fulfillment_status = 'PENDING'
-        ) AS pending_orders,
-        COUNT(*) FILTER (
-          WHERE fulfillment_status = 'PROCESSING'
-        ) AS processing_orders,
-        COUNT(*) FILTER (
-          WHERE fulfillment_status = 'DELIVERED'
-        ) AS delivered_orders,
-        COUNT(*) FILTER (
-          WHERE fulfillment_status = 'CANCELLED'
-        ) AS cancelled_orders
-       FROM orders`
-    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: "Order not found. Please check your reference."
+      });
+    }
 
-    const stats = statsResult.rows[0];
+    const order = result.rows[0];
 
-    res.json({
-      orders: result.rows,
-
-      stats: {
-        totalOrders: Number(stats.total_orders),
-        paidOrders: Number(stats.paid_orders),
-        totalRevenue: Number(stats.total_revenue),
-        pendingOrders: Number(stats.pending_orders),
-        processingOrders: Number(stats.processing_orders),
-        deliveredOrders: Number(stats.delivered_orders),
-        cancelledOrders: Number(stats.cancelled_orders)
+    return res.json({
+      order: {
+        reference: order.reference,
+        product: order.product,
+        package: order.package,
+        amount: Number(order.amount),
+        currency: order.currency,
+        paymentStatus: order.status,
+        deliveryStatus: order.fulfillment_status,
+        orderDate: order.created_at,
+        deliveredAt: order.delivered_at
       }
     });
 
   } catch (error) {
-    console.error("Admin orders error:", error.message);
+    console.error("Order tracking error:", error.message);
 
-    res.status(500).json({
-      message: "Unable to retrieve orders."
+    return res.status(500).json({
+      error: "Unable to check this order right now."
     });
   }
 });
 
-// ==================================================
-// UPDATE ORDER DELIVERY STATUS
-// ==================================================
+// Admin order list and statistics
+app.get("/api/admin/orders", requireAdmin, async (req, res) => {
+  try {
+    const status = String(req.query.status || "").toUpperCase();
+    const search = String(req.query.search || "").trim().slice(0, 100);
 
+    const conditions = [];
+    const values = [];
+
+    if (status && fulfillmentStatuses.includes(status)) {
+      values.push(status);
+      conditions.push(`fulfillment_status = $${values.length}`);
+    }
+
+    if (search) {
+      values.push(`%${search}%`);
+      const index = values.length;
+
+      conditions.push(
+        `(reference ILIKE $${index}
+          OR customer_email ILIKE $${index}
+          OR product ILIKE $${index})`
+      );
+    }
+
+    const where = conditions.length
+      ? `WHERE ${conditions.join(" AND ")}`
+      : "";
+
+    const ordersResult = await pool.query(
+      `SELECT *
+       FROM orders
+       ${where}
+       ORDER BY created_at DESC
+       LIMIT 200`,
+      values
+    );
+
+    const statsResult = await pool.query(`
+      SELECT
+        COUNT(*)::int AS "totalOrders",
+        COUNT(*) FILTER (WHERE status = 'PAID')::int AS "paidOrders",
+        COALESCE(
+          SUM(amount) FILTER (WHERE status = 'PAID'), 0
+        ) AS "totalRevenue",
+        COUNT(*) FILTER (
+          WHERE fulfillment_status = 'PENDING'
+        )::int AS "pendingOrders",
+        COUNT(*) FILTER (
+          WHERE fulfillment_status = 'PROCESSING'
+        )::int AS "processingOrders",
+        COUNT(*) FILTER (
+          WHERE fulfillment_status = 'DELIVERED'
+        )::int AS "deliveredOrders",
+        COUNT(*) FILTER (
+          WHERE fulfillment_status = 'CANCELLED'
+        )::int AS "cancelledOrders"
+      FROM orders
+    `);
+
+    return res.json({
+      orders: ordersResult.rows,
+      stats: statsResult.rows[0]
+    });
+
+  } catch (error) {
+    console.error("Admin orders error:", error.message);
+    return res.status(500).json({
+      error: "Unable to load orders."
+    });
+  }
+});
+
+// Admin delivery status update
 app.patch(
   "/api/admin/orders/:reference/status",
   requireAdmin,
   async (req, res) => {
     try {
-      const reference = req.params.reference;
-      const newStatus = String(
+      const reference = String(req.params.reference || "").trim();
+      const fulfillmentStatus = String(
         req.body?.fulfillmentStatus || ""
       ).toUpperCase();
 
-      if (!/^[a-zA-Z0-9_-]{1,100}$/.test(reference)) {
+      if (!reference || reference.length > 100) {
         return res.status(400).json({
-          message: "Invalid order reference."
+          error: "Invalid order reference."
         });
       }
 
-      if (!fulfillmentStatuses.includes(newStatus)) {
+      if (!fulfillmentStatuses.includes(fulfillmentStatus)) {
         return res.status(400).json({
-          message: "Invalid delivery status."
+          error: "Invalid delivery status."
         });
       }
 
@@ -476,106 +396,52 @@ app.patch(
            fulfillment_status = $1,
            delivered_at = CASE
              WHEN $1 = 'DELIVERED' THEN COALESCE(delivered_at, NOW())
-             ELSE NULL
+             ELSE delivered_at
            END,
            fulfillment_updated_at = NOW(),
            updated_at = NOW()
          WHERE reference = $2
            AND status = 'PAID'
-         RETURNING
-           reference,
-           product,
-           package,
-           status,
-           fulfillment_status,
-           delivered_at,
-           fulfillment_updated_at`,
-        [newStatus, reference]
+         RETURNING reference, fulfillment_status, delivered_at`,
+        [fulfillmentStatus, reference]
       );
 
-      if (result.rowCount === 0) {
-        const existing = await pool.query(
-          "SELECT reference, status FROM orders WHERE reference = $1",
-          [reference]
-        );
-
-        if (existing.rowCount === 0) {
-          return res.status(404).json({
-            message: "Order not found."
-          });
-        }
-
-        return res.status(400).json({
-          message: "Only successfully paid orders can be processed."
+      if (result.rows.length === 0) {
+        return res.status(404).json({
+          error: "Paid order not found."
         });
       }
 
-      res.json({
+      return res.json({
         success: true,
-        message: "Order delivery status updated.",
         order: result.rows[0]
       });
 
     } catch (error) {
-      console.error("Order status update error:", error.message);
-
-      res.status(500).json({
-        message: "Unable to update order status."
+      console.error("Delivery update error:", error.message);
+      return res.status(500).json({
+        error: "Unable to update delivery status."
       });
     }
   }
 );
 
-// ==================================================
-// HOMEPAGE
-// ==================================================
-
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
-});
-
-// ==================================================
-// INITIALIZE PAYSTACK PAYMENT
-// ==================================================
-
+// Initialize Paystack payment
 app.post("/api/payments/initialize", async (req, res) => {
   try {
-    if (!PAYSTACK_SECRET_KEY || !BASE_URL) {
-      return res.status(503).json({
-        message: "Payment service is not configured."
-      });
-    }
-
-    const { email, product, packageIndex } = req.body;
+    const { email, amount, product, package: packageName } = req.body || {};
 
     if (
       typeof email !== "string" ||
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+      !email.includes("@") ||
+      typeof amount !== "number" ||
+      !Number.isFinite(amount) ||
+      amount <= 0 ||
+      typeof product !== "string" ||
+      typeof packageName !== "string"
     ) {
       return res.status(400).json({
-        message: "Please provide a valid email address."
-      });
-    }
-
-    if (
-      !products[product] ||
-      !Number.isInteger(packageIndex) ||
-      packageIndex < 0 ||
-      packageIndex >= packageNames.length
-    ) {
-      return res.status(400).json({
-        message: "Invalid product or package."
-      });
-    }
-
-    const price = products[product][packageIndex];
-    const packageName = packageNames[packageIndex];
-
-    const baseUrl = new URL(BASE_URL);
-
-    if (baseUrl.protocol !== "https:") {
-      return res.status(500).json({
-        message: "Invalid payment callback configuration."
+        error: "Invalid payment details."
       });
     }
 
@@ -583,37 +449,23 @@ app.post("/api/payments/initialize", async (req, res) => {
       "https://api.paystack.co/transaction/initialize",
       {
         email,
-        amount: Math.round(price * 100),
+        amount: Math.round(amount * 100),
         currency: "GHS",
-
-        callback_url:
-          `${BASE_URL.replace(/\/+$/, "")}/payment.html`,
-
+        callback_url: `${process.env.BASE_URL}/payment.html`,
         metadata: {
-          bhadex_product: product,
-          bhadex_package: packageName,
-          bhadex_package_index: packageIndex
+          product,
+          package: packageName
         }
       },
       {
         headers: {
-          Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
+          Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
           "Content-Type": "application/json"
-        },
-        timeout: 15000
+        }
       }
     );
 
-    if (!response.data.status || !response.data.data) {
-      return res.status(502).json({
-        message: "Paystack could not initialize the payment."
-      });
-    }
-
-    res.json({
-      authorization_url: response.data.data.authorization_url,
-      reference: response.data.data.reference
-    });
+    return res.json(response.data.data);
 
   } catch (error) {
     console.error(
@@ -621,141 +473,81 @@ app.post("/api/payments/initialize", async (req, res) => {
       error.response?.data || error.message
     );
 
-    res.status(500).json({
-      message: "Unable to start payment. Please try again."
+    return res.status(500).json({
+      error: "Unable to initialize payment."
     });
   }
 });
 
-// ==================================================
-// VERIFY PAYMENT AND SAVE ORDER
-// ==================================================
-
+// Verify Paystack payment
 app.get("/api/payments/verify/:reference", async (req, res) => {
   try {
-    if (!PAYSTACK_SECRET_KEY) {
-      return res.status(503).json({
-        message: "Payment service is not configured."
-      });
-    }
-
-    const reference = req.params.reference;
-
-    if (!/^[a-zA-Z0-9_-]{1,100}$/.test(reference)) {
-      return res.status(400).json({
-        message: "Invalid payment reference."
-      });
-    }
+    const reference = String(req.params.reference || "");
 
     const response = await axios.get(
       `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
       {
         headers: {
-          Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`
-        },
-        timeout: 15000
+          Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`
+        }
       }
     );
 
-    const payment = response.data?.data;
+    const payment = response.data.data;
 
-    if (!response.data?.status || !payment) {
-      return res.status(502).json({
-        message: "Unable to retrieve payment details."
+    if (
+      payment.status !== "success" ||
+      payment.currency !== "GHS"
+    ) {
+      return res.status(400).json({
+        error: "Payment has not been confirmed."
       });
     }
 
-    const product = payment.metadata?.bhadex_product;
+    const metadata = payment.metadata || {};
 
-    const packageIndex = Number(
-      payment.metadata?.bhadex_package_index
-    );
-
-    const expectedPackage = packageNames[packageIndex];
-    const expectedPrice = products[product]?.[packageIndex];
-
-    const validOrder =
-      typeof expectedPrice === "number" &&
-      Number.isInteger(packageIndex) &&
-      packageIndex >= 0 &&
-      packageIndex < packageNames.length &&
-      payment.metadata?.bhadex_package === expectedPackage;
-
-    const validPayment =
-      payment.status === "success" &&
-      payment.currency === "GHS" &&
-      payment.reference === reference &&
-      validOrder &&
-      Number(payment.amount) === Math.round(expectedPrice * 100);
-
-    if (!validPayment) {
-      return res.json({
-        verified: false,
-        status: payment.status,
-        reference: payment.reference,
-        currency: payment.currency
+    if (!metadata.product || !metadata.package) {
+      return res.status(400).json({
+        error: "Payment details are incomplete."
       });
     }
 
-    const customerEmail = payment.customer?.email || null;
-
-    const saved = await pool.query(
-      `INSERT INTO orders
-        (reference, customer_email, product, package, amount, currency, status)
-       VALUES ($1, $2, $3, $4, $5, $6, 'PAID')
-       ON CONFLICT (reference) DO NOTHING
-       RETURNING *`,
-      [
+    await pool.query(
+      `INSERT INTO orders (
         reference,
-        customerEmail,
+        customer_email,
         product,
-        expectedPackage,
-        expectedPrice,
-        "GHS"
+        package,
+        amount,
+        currency,
+        status,
+        fulfillment_status
+      )
+      VALUES ($1, $2, $3, $4, $5, 'GHS', 'PAID', 'PENDING')
+      ON CONFLICT (reference) DO NOTHING`,
+      [
+        payment.reference,
+        payment.customer?.email || null,
+        metadata.product,
+        metadata.package,
+        payment.amount / 100
       ]
     );
 
-    let order = saved.rows[0];
-
-    if (!order) {
-      const existing = await pool.query(
-        "SELECT * FROM orders WHERE reference = $1",
-        [reference]
-      );
-
-      order = existing.rows[0];
-    }
-
-    if (!order) {
-      throw new Error("Verified order could not be saved.");
-    }
-
-    res.json({
-      verified: true,
-      status: "success",
-      reference: order.reference,
-      product: order.product,
-      package: order.package,
-      amount: Number(order.amount),
-      currency: order.currency,
-      orderStatus: order.status
+    return res.json({
+      success: true,
+      reference: payment.reference,
+      status: payment.status
     });
 
   } catch (error) {
-    console.error(
-      "Payment verification error:",
-      error.response?.data || error.message
-    );
+    console.error("Payment verification error:", error.message);
 
-    res.status(500).json({
-      message: "Unable to verify payment."
+    return res.status(500).json({
+      error: "Unable to verify payment."
     });
   }
 });
-
-// ==================================================
-// START SERVER
-// ==================================================
 
 async function startServer() {
   try {
@@ -766,7 +558,7 @@ async function startServer() {
     });
 
   } catch (error) {
-    console.error("Database startup error:", error.message);
+    console.error("Server startup error:", error);
     process.exit(1);
   }
 }

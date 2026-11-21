@@ -17,6 +17,28 @@ const PORT = process.env.PORT || 10000;
 
 app.set("trust proxy", 1);
 
+// PRODUCT PRICES
+const PRODUCT_PRICES = {
+  "Netflix": [35, 90, 170, 320, 450],
+  "YouTube Premium": [20, 55, 100, 190, 260],
+  "Spotify Premium": [18, 50, 95, 180, 250],
+  "Canva": [25, 70, 135, 250, 350],
+  "ChatGPT": [45, 125, 240, 460, 620],
+  "Microsoft 365": [30, 85, 160, 300, 420],
+  "Disney+": [25, 70, 135, 250, 350],
+  "Prime Video": [20, 55, 105, 200, 280],
+  "Telegram Premium": [20, 55, 105, 200, 280],
+  "Google One": [15, 40, 75, 140, 200]
+};
+
+const PACKAGE_NAMES = [
+  "Basic",
+  "Standard",
+  "Premium",
+  "Advanced",
+  "Ultimate"
+];
+
 const fulfillmentStatuses = [
   "PENDING",
   "PROCESSING",
@@ -24,7 +46,16 @@ const fulfillmentStatuses = [
   "CANCELLED"
 ];
 
-// Rate limits
+function getExpectedAmount(product, packageName) {
+  const prices = PRODUCT_PRICES[product];
+  const index = PACKAGE_NAMES.indexOf(packageName);
+
+  if (!prices || index === -1) return null;
+
+  return prices[index] * 100;
+}
+
+// RATE LIMITS
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 5,
@@ -39,7 +70,15 @@ const trackingLimiter = rateLimit({
   legacyHeaders: false
 });
 
-// Paystack webhook
+const paymentLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+// PAYSTACK WEBHOOK
+// Keep this before express.json().
 app.post(
   "/api/payments/webhook",
   express.raw({ type: "application/json" }),
@@ -48,7 +87,7 @@ app.post(
       const signature = req.headers["x-paystack-signature"];
       const secret = process.env.PAYSTACK_SECRET_KEY;
 
-      if (!secret || !signature) {
+      if (!secret || !signature || !Buffer.isBuffer(req.body)) {
         return res.sendStatus(401);
       }
 
@@ -73,7 +112,11 @@ app.post(
         return res.sendStatus(200);
       }
 
-      const reference = event.data.reference;
+      const reference = event.data?.reference;
+
+      if (!reference) {
+        return res.sendStatus(400);
+      }
 
       const verification = await axios.get(
         `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
@@ -85,18 +128,20 @@ app.post(
       );
 
       const payment = verification.data.data;
+      const metadata = payment.metadata || {};
+
+      const expectedAmount = getExpectedAmount(
+        metadata.product,
+        metadata.package
+      );
 
       if (
         payment.status !== "success" ||
         payment.currency !== "GHS" ||
-        payment.amount !== event.data.amount
+        payment.amount !== event.data.amount ||
+        expectedAmount === null ||
+        payment.amount !== expectedAmount
       ) {
-        return res.sendStatus(400);
-      }
-
-      const metadata = payment.metadata || {};
-
-      if (!metadata.product || !metadata.package) {
         return res.sendStatus(400);
       }
 
@@ -125,13 +170,17 @@ app.post(
       return res.sendStatus(200);
 
     } catch (error) {
-      console.error("Paystack webhook error:", error.message);
+      console.error(
+        "Paystack webhook error:",
+        error.response?.data || error.message
+      );
+
       return res.sendStatus(500);
     }
   }
 );
 
-// General middleware
+// GENERAL MIDDLEWARE
 app.use(express.json({ limit: "10kb" }));
 
 app.use(
@@ -142,7 +191,7 @@ app.use(
 
 app.use(express.static(path.join(__dirname, "public")));
 
-// Environment checks
+// ENVIRONMENT CHECKS
 if (!process.env.ADMIN_PASSWORD || !process.env.SESSION_SECRET) {
   throw new Error(
     "ADMIN_PASSWORD and SESSION_SECRET must be configured."
@@ -157,7 +206,11 @@ if (!process.env.PAYSTACK_SECRET_KEY) {
   throw new Error("PAYSTACK_SECRET_KEY must be configured.");
 }
 
-// Admin sessions
+if (!process.env.BASE_URL) {
+  throw new Error("BASE_URL must be configured.");
+}
+
+// ADMIN SESSIONS
 app.use(
   session({
     store: new PgSession({
@@ -170,14 +223,14 @@ app.use(
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: "auto",
       sameSite: "strict",
       maxAge: 4 * 60 * 60 * 1000
     }
   })
 );
 
-// Admin password comparison
+// ADMIN PASSWORD COMPARISON
 function safePasswordCompare(input, correct) {
   const inputHash = crypto
     .createHash("sha256")
@@ -192,7 +245,7 @@ function safePasswordCompare(input, correct) {
   return crypto.timingSafeEqual(inputHash, correctHash);
 }
 
-// Admin protection
+// ADMIN PROTECTION
 function requireAdmin(req, res, next) {
   if (!req.session || !req.session.isAdmin) {
     return res.status(401).json({
@@ -203,7 +256,7 @@ function requireAdmin(req, res, next) {
   next();
 }
 
-// Admin login
+// ADMIN LOGIN
 app.post("/api/admin/login", loginLimiter, async (req, res) => {
   try {
     const password = req.body?.password;
@@ -220,6 +273,7 @@ app.post("/api/admin/login", loginLimiter, async (req, res) => {
     req.session.regenerate((error) => {
       if (error) {
         console.error("Session error:", error.message);
+
         return res.status(500).json({
           error: "Unable to create session."
         });
@@ -243,95 +297,101 @@ app.post("/api/admin/login", loginLimiter, async (req, res) => {
 
   } catch (error) {
     console.error("Admin login error:", error.message);
+
     return res.status(500).json({
       error: "Login failed."
     });
   }
 });
 
-// Admin logout
+// ADMIN LOGOUT
 app.post("/api/admin/logout", requireAdmin, (req, res) => {
-  req.session.destroy(() => {
+  req.session.destroy((error) => {
+    if (error) {
+      return res.status(500).json({
+        error: "Unable to log out."
+      });
+    }
+
     res.clearCookie("connect.sid");
-    return res.json({ success: true });
+
+    return res.json({
+      success: true
+    });
   });
 });
 
-// CUSTOMER TRACKING WITH EMAIL MATCHING
-app.post(
-  "/api/orders/track",
-  trackingLimiter,
-  async (req, res) => {
-    try {
-      const reference = String(
-        req.body?.reference || ""
-      ).trim();
+// CUSTOMER ORDER TRACKING
+app.post("/api/orders/track", trackingLimiter, async (req, res) => {
+  try {
+    const reference = String(
+      req.body?.reference || ""
+    ).trim();
 
-      const email = String(
-        req.body?.email || ""
-      ).trim().toLowerCase();
+    const email = String(
+      req.body?.email || ""
+    ).trim().toLowerCase();
 
-      if (
-        !reference ||
-        reference.length > 100 ||
-        !email ||
-        email.length > 255 ||
-        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-      ) {
-        return res.status(400).json({
-          error: "Enter a valid order reference and email address."
-        });
-      }
-
-      const result = await pool.query(
-        `SELECT
-          reference,
-          product,
-          package,
-          amount,
-          currency,
-          status,
-          fulfillment_status,
-          created_at,
-          delivered_at
-         FROM orders
-         WHERE reference = $1
-         AND LOWER(customer_email) = $2
-         LIMIT 1`,
-        [reference, email]
-      );
-
-      if (result.rows.length === 0) {
-        return res.status(404).json({
-          error: "Order not found. Check your reference and purchase email."
-        });
-      }
-
-      const order = result.rows[0];
-
-      return res.json({
-        order: {
-          reference: order.reference,
-          product: order.product,
-          package: order.package,
-          amount: Number(order.amount),
-          currency: order.currency,
-          paymentStatus: order.status,
-          deliveryStatus: order.fulfillment_status,
-          orderDate: order.created_at,
-          deliveredAt: order.delivered_at
-        }
-      });
-
-    } catch (error) {
-      console.error("Order tracking error:", error.message);
-
-      return res.status(500).json({
-        error: "Unable to check this order right now."
+    if (
+      !reference ||
+      reference.length > 100 ||
+      !email ||
+      email.length > 255 ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+    ) {
+      return res.status(400).json({
+        error: "Enter a valid order reference and email address."
       });
     }
+
+    const result = await pool.query(
+      `SELECT
+        reference,
+        product,
+        package,
+        amount,
+        currency,
+        status,
+        fulfillment_status,
+        created_at,
+        delivered_at
+       FROM orders
+       WHERE reference = $1
+       AND LOWER(customer_email) = $2
+       LIMIT 1`,
+      [reference, email]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: "Order not found. Check your reference and purchase email."
+      });
+    }
+
+    const order = result.rows[0];
+
+    return res.json({
+      order: {
+        reference: order.reference,
+        product: order.product,
+        package: order.package,
+        amount: Number(order.amount),
+        currency: order.currency,
+        paymentStatus: order.status,
+        deliveryStatus: order.fulfillment_status,
+        orderDate: order.created_at,
+        deliveredAt: order.delivered_at
+      }
+    });
+
+  } catch (error) {
+    console.error("Order tracking error:", error.message);
+
+    return res.status(500).json({
+      error: "Unable to check this order right now."
+    });
   }
-);
+});
 
 // ADMIN ORDER LIST AND STATISTICS
 app.get("/api/admin/orders", requireAdmin, async (req, res) => {
@@ -477,67 +537,84 @@ app.patch(
 );
 
 // PAYSTACK PAYMENT INITIALIZATION
-app.post("/api/payments/initialize", async (req, res) => {
-  try {
-    const {
-      email,
-      amount,
-      product,
-      package: packageName
-    } = req.body || {};
+app.post(
+  "/api/payments/initialize",
+  paymentLimiter,
+  async (req, res) => {
+    try {
+      const {
+        email,
+        product,
+        packageIndex
+      } = req.body || {};
 
-    if (
-      typeof email !== "string" ||
-      !email.includes("@") ||
-      typeof amount !== "number" ||
-      !Number.isFinite(amount) ||
-      amount <= 0 ||
-      typeof product !== "string" ||
-      typeof packageName !== "string"
-    ) {
-      return res.status(400).json({
-        error: "Invalid payment details."
+      if (
+        typeof email !== "string" ||
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) ||
+        typeof product !== "string" ||
+        !Object.prototype.hasOwnProperty.call(PRODUCT_PRICES, product) ||
+        !Number.isInteger(packageIndex) ||
+        packageIndex < 0 ||
+        packageIndex >= PACKAGE_NAMES.length
+      ) {
+        return res.status(400).json({
+          error: "Invalid payment details."
+        });
+      }
+
+      // Calculate the price on the server.
+      const amount = PRODUCT_PRICES[product][packageIndex];
+      const packageName = PACKAGE_NAMES[packageIndex];
+
+      const baseUrl = process.env.BASE_URL.replace(/\/+$/, "");
+
+      const response = await axios.post(
+        "https://api.paystack.co/transaction/initialize",
+        {
+          email: email.trim(),
+          amount: amount * 100,
+          currency: "GHS",
+          callback_url: `${baseUrl}/payment.html`,
+          metadata: {
+            product,
+            package: packageName
+          }
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
+            "Content-Type": "application/json"
+          }
+        }
+      );
+
+      return res.json(response.data.data);
+
+    } catch (error) {
+      console.error(
+        "Payment initialization error:",
+        error.response?.data || error.message
+      );
+
+      return res.status(500).json({
+        error: "Unable to initialize payment."
       });
     }
-
-    const response = await axios.post(
-      "https://api.paystack.co/transaction/initialize",
-      {
-        email,
-        amount: Math.round(amount * 100),
-        currency: "GHS",
-        callback_url: `${process.env.BASE_URL}/payment.html`,
-        metadata: {
-          product,
-          package: packageName
-        }
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
-          "Content-Type": "application/json"
-        }
-      }
-    );
-
-    return res.json(response.data.data);
-
-  } catch (error) {
-    console.error(
-      "Payment initialization error:",
-      error.response?.data || error.message
-    );
-
-    return res.status(500).json({
-      error: "Unable to initialize payment."
-    });
   }
-});
+);
 
 // PAYSTACK PAYMENT VERIFICATION
 app.get("/api/payments/verify/:reference", async (req, res) => {
   try {
-    const reference = String(req.params.reference || "");
+    const reference = String(
+      req.params.reference || ""
+    ).trim();
+
+    if (!reference || reference.length > 100) {
+      return res.status(400).json({
+        error: "Invalid payment reference."
+      });
+    }
 
     const response = await axios.get(
       `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
@@ -549,21 +626,21 @@ app.get("/api/payments/verify/:reference", async (req, res) => {
     );
 
     const payment = response.data.data;
+    const metadata = payment.metadata || {};
+
+    const expectedAmount = getExpectedAmount(
+      metadata.product,
+      metadata.package
+    );
 
     if (
       payment.status !== "success" ||
-      payment.currency !== "GHS"
+      payment.currency !== "GHS" ||
+      expectedAmount === null ||
+      payment.amount !== expectedAmount
     ) {
       return res.status(400).json({
         error: "Payment has not been confirmed."
-      });
-    }
-
-    const metadata = payment.metadata || {};
-
-    if (!metadata.product || !metadata.package) {
-      return res.status(400).json({
-        error: "Payment details are incomplete."
       });
     }
 
@@ -596,7 +673,10 @@ app.get("/api/payments/verify/:reference", async (req, res) => {
     });
 
   } catch (error) {
-    console.error("Payment verification error:", error.message);
+    console.error(
+      "Payment verification error:",
+      error.response?.data || error.message
+    );
 
     return res.status(500).json({
       error: "Unable to verify payment."

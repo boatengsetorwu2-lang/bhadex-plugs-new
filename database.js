@@ -9,10 +9,14 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   max: 5,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000
+  connectionTimeoutMillis: 10000,
+  ssl: process.env.DATABASE_URL.includes("localhost")
+    ? false
+    : { rejectUnauthorized: false }
 });
 
 async function initializeDatabase() {
+  // Create orders table if it does not exist
   await pool.query(`
     CREATE TABLE IF NOT EXISTS orders (
       id BIGSERIAL PRIMARY KEY,
@@ -23,9 +27,30 @@ async function initializeDatabase() {
       amount NUMERIC(12, 2) NOT NULL,
       currency VARCHAR(3) NOT NULL DEFAULT 'GHS',
       status VARCHAR(30) NOT NULL DEFAULT 'PAID',
+      fulfillment_status VARCHAR(30) NOT NULL DEFAULT 'PENDING',
+      delivered_at TIMESTAMPTZ,
+      fulfillment_updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+  `);
+
+  // Safely add new columns to an existing database
+  await pool.query(`
+    ALTER TABLE orders
+      ADD COLUMN IF NOT EXISTS fulfillment_status
+        VARCHAR(30) NOT NULL DEFAULT 'PENDING',
+      ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS fulfillment_updated_at
+        TIMESTAMPTZ NOT NULL DEFAULT NOW();
+  `);
+
+  // Ensure existing orders have a delivery status
+  await pool.query(`
+    UPDATE orders
+    SET fulfillment_status = 'PENDING'
+    WHERE fulfillment_status IS NULL
+       OR fulfillment_status = '';
   `);
 
   console.log("BHADEX PLUGS database initialized.");

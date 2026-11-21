@@ -18,10 +18,7 @@
       padding: 20px;
     }
 
-    .container {
-      width: 100%;
-      max-width: 540px;
-    }
+    .container { width: 100%; max-width: 540px; }
 
     .brand {
       text-align: center;
@@ -47,10 +44,17 @@
       font-size: 14px;
     }
 
+    label {
+      display: block;
+      margin-top: 17px;
+      font-size: 13px;
+      color: #ccc;
+    }
+
     input {
       width: 100%;
       padding: 14px;
-      margin: 20px 0 12px;
+      margin-top: 8px;
       border-radius: 8px;
       border: 1px solid #444;
       background: #090909;
@@ -61,6 +65,7 @@
     button {
       width: 100%;
       padding: 14px;
+      margin-top: 20px;
       border: 0;
       border-radius: 8px;
       background: #ff263d;
@@ -69,10 +74,7 @@
       cursor: pointer;
     }
 
-    button:disabled {
-      opacity: .6;
-      cursor: not-allowed;
-    }
+    button:disabled { opacity: .6; }
 
     .message {
       margin-top: 15px;
@@ -97,6 +99,7 @@
     }
 
     .detail span:first-child { color: #aaa; }
+
     .detail span:last-child {
       text-align: right;
       overflow-wrap: anywhere;
@@ -133,17 +136,28 @@
 
     <section class="card">
       <h2>Track Your Order</h2>
-      <p>Enter your order reference to check your payment and delivery progress.</p>
+      <p>Enter your order reference and the email address used for your purchase.</p>
 
       <form id="trackingForm">
+        <label for="reference">Order Reference</label>
         <input
           id="reference"
           type="text"
-          placeholder="Enter your order reference"
           maxlength="100"
+          placeholder="Enter your order reference"
           required
         >
-        <button id="trackButton" type="submit">Track Order</button>
+
+        <label for="email">Purchase Email Address</label>
+        <input
+          id="email"
+          type="email"
+          maxlength="255"
+          placeholder="Enter your purchase email"
+          required
+        >
+
+        <button id="trackButton" type="submit">Verify & Track Order</button>
       </form>
 
       <p id="message" class="message" role="status"></p>
@@ -151,45 +165,14 @@
       <div id="result" class="result hidden">
         <h2>Order Information</h2>
 
-        <div class="detail">
-          <span>Reference</span>
-          <span id="orderReference"></span>
-        </div>
-
-        <div class="detail">
-          <span>Product</span>
-          <span id="product"></span>
-        </div>
-
-        <div class="detail">
-          <span>Package</span>
-          <span id="package"></span>
-        </div>
-
-        <div class="detail">
-          <span>Amount</span>
-          <span id="amount"></span>
-        </div>
-
-        <div class="detail">
-          <span>Payment</span>
-          <span id="payment"></span>
-        </div>
-
-        <div class="detail">
-          <span>Delivery</span>
-          <span id="delivery"></span>
-        </div>
-
-        <div class="detail">
-          <span>Order Date</span>
-          <span id="orderDate"></span>
-        </div>
-
-        <div class="detail">
-          <span>Delivered Date</span>
-          <span id="deliveredDate"></span>
-        </div>
+        <div class="detail"><span>Reference</span><span id="orderReference"></span></div>
+        <div class="detail"><span>Product</span><span id="product"></span></div>
+        <div class="detail"><span>Package</span><span id="package"></span></div>
+        <div class="detail"><span>Amount</span><span id="amount"></span></div>
+        <div class="detail"><span>Payment</span><span id="payment"></span></div>
+        <div class="detail"><span>Delivery</span><span id="delivery"></span></div>
+        <div class="detail"><span>Order Date</span><span id="orderDate"></span></div>
+        <div class="detail"><span>Delivered Date</span><span id="deliveredDate"></span></div>
       </div>
     </section>
 
@@ -210,7 +193,9 @@
 
     function formatDate(value) {
       if (!value) return "Not yet delivered";
+
       const date = new Date(value);
+
       return Number.isNaN(date.getTime())
         ? "-"
         : date.toLocaleString();
@@ -219,21 +204,22 @@
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
 
-      const reference = document
-        .getElementById("reference")
-        .value.trim();
-
-      if (!reference) return;
-
       button.disabled = true;
-      button.textContent = "Checking...";
+      button.textContent = "Verifying...";
       message.textContent = "";
       result.classList.add("hidden");
 
       try {
-        const response = await fetch(
-          "/api/orders/track/" + encodeURIComponent(reference)
-        );
+        const response = await fetch("/api/orders/track", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            reference: document.getElementById("reference").value.trim(),
+            email: document.getElementById("email").value.trim()
+          })
+        });
 
         const data = await response.json();
 
@@ -264,13 +250,13 @@
         delivery.appendChild(badge);
 
         result.classList.remove("hidden");
-        message.textContent = "Order found successfully.";
+        message.textContent = "Email verified. Order found successfully.";
 
       } catch (error) {
         message.textContent = error.message;
       } finally {
         button.disabled = false;
-        button.textContent = "Track Order";
+        button.textContent = "Verify & Track Order";
       }
     });
   </script>

@@ -1,0 +1,278 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Track Your Order | BHADEX PLUGS</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      background: #080808;
+      color: white;
+      font-family: Arial, sans-serif;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 540px;
+    }
+
+    .brand {
+      text-align: center;
+      margin-bottom: 28px;
+      font-size: 27px;
+      font-weight: bold;
+    }
+
+    .brand span { color: #ff263d; }
+
+    .card {
+      background: #151515;
+      border: 1px solid #303030;
+      border-radius: 15px;
+      padding: 28px;
+    }
+
+    h2 { margin-bottom: 10px; }
+
+    p {
+      color: #aaa;
+      line-height: 1.6;
+      font-size: 14px;
+    }
+
+    input {
+      width: 100%;
+      padding: 14px;
+      margin: 20px 0 12px;
+      border-radius: 8px;
+      border: 1px solid #444;
+      background: #090909;
+      color: white;
+      font-size: 15px;
+    }
+
+    button {
+      width: 100%;
+      padding: 14px;
+      border: 0;
+      border-radius: 8px;
+      background: #ff263d;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: .6;
+      cursor: not-allowed;
+    }
+
+    .message {
+      margin-top: 15px;
+      color: #ff7180;
+    }
+
+    .result {
+      margin-top: 24px;
+      border-top: 1px solid #333;
+      padding-top: 22px;
+    }
+
+    .hidden { display: none; }
+
+    .detail {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 13px 0;
+      border-bottom: 1px solid #292929;
+      font-size: 14px;
+    }
+
+    .detail span:first-child { color: #aaa; }
+    .detail span:last-child {
+      text-align: right;
+      overflow-wrap: anywhere;
+    }
+
+    .status {
+      display: inline-block;
+      background: #292929;
+      padding: 7px 10px;
+      border-radius: 20px;
+      font-weight: bold;
+      font-size: 12px;
+    }
+
+    .status.delivered { color: #64e89a; }
+    .status.pending { color: #ffd166; }
+    .status.processing { color: #74baff; }
+    .status.cancelled { color: #ff7180; }
+
+    .footer {
+      text-align: center;
+      margin-top: 22px;
+    }
+
+    .footer a {
+      color: #ff5266;
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <div class="brand">BHADEX <span>PLUGS</span></div>
+
+    <section class="card">
+      <h2>Track Your Order</h2>
+      <p>Enter your order reference to check your payment and delivery progress.</p>
+
+      <form id="trackingForm">
+        <input
+          id="reference"
+          type="text"
+          placeholder="Enter your order reference"
+          maxlength="100"
+          required
+        >
+        <button id="trackButton" type="submit">Track Order</button>
+      </form>
+
+      <p id="message" class="message" role="status"></p>
+
+      <div id="result" class="result hidden">
+        <h2>Order Information</h2>
+
+        <div class="detail">
+          <span>Reference</span>
+          <span id="orderReference"></span>
+        </div>
+
+        <div class="detail">
+          <span>Product</span>
+          <span id="product"></span>
+        </div>
+
+        <div class="detail">
+          <span>Package</span>
+          <span id="package"></span>
+        </div>
+
+        <div class="detail">
+          <span>Amount</span>
+          <span id="amount"></span>
+        </div>
+
+        <div class="detail">
+          <span>Payment</span>
+          <span id="payment"></span>
+        </div>
+
+        <div class="detail">
+          <span>Delivery</span>
+          <span id="delivery"></span>
+        </div>
+
+        <div class="detail">
+          <span>Order Date</span>
+          <span id="orderDate"></span>
+        </div>
+
+        <div class="detail">
+          <span>Delivered Date</span>
+          <span id="deliveredDate"></span>
+        </div>
+      </div>
+    </section>
+
+    <div class="footer">
+      <p><a href="/">Back to BHADEX PLUGS</a></p>
+    </div>
+  </main>
+
+  <script>
+    const form = document.getElementById("trackingForm");
+    const button = document.getElementById("trackButton");
+    const message = document.getElementById("message");
+    const result = document.getElementById("result");
+
+    function showValue(id, value) {
+      document.getElementById(id).textContent = value || "-";
+    }
+
+    function formatDate(value) {
+      if (!value) return "Not yet delivered";
+      const date = new Date(value);
+      return Number.isNaN(date.getTime())
+        ? "-"
+        : date.toLocaleString();
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      const reference = document
+        .getElementById("reference")
+        .value.trim();
+
+      if (!reference) return;
+
+      button.disabled = true;
+      button.textContent = "Checking...";
+      message.textContent = "";
+      result.classList.add("hidden");
+
+      try {
+        const response = await fetch(
+          "/api/orders/track/" + encodeURIComponent(reference)
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || "Unable to find this order.");
+        }
+
+        const order = data.order;
+
+        showValue("orderReference", order.reference);
+        showValue("product", order.product);
+        showValue("package", order.package);
+        showValue(
+          "amount",
+          order.currency + " " + Number(order.amount).toFixed(2)
+        );
+        showValue("payment", order.paymentStatus);
+        showValue("orderDate", formatDate(order.orderDate));
+        showValue("deliveredDate", formatDate(order.deliveredAt));
+
+        const delivery = document.getElementById("delivery");
+        delivery.replaceChildren();
+
+        const badge = document.createElement("span");
+        badge.className =
+          "status " + String(order.deliveryStatus).toLowerCase();
+        badge.textContent = order.deliveryStatus;
+        delivery.appendChild(badge);
+
+        result.classList.remove("hidden");
+        message.textContent = "Order found successfully.";
+
+      } catch (error) {
+        message.textContent = error.message;
+      } finally {
+        button.disabled = false;
+        button.textContent = "Track Order";
+      }
+    });
+  </script>
+</body>
+</html>

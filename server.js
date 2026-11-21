@@ -55,6 +55,160 @@ function getExpectedAmount(product, packageName) {
   return prices[index] * 100;
 }
 
+// ESCAPE EMAIL CONTENT
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, character => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  })[character]);
+}
+
+// AUTOMATIC ORDER CONFIRMATION EMAIL
+async function sendOrderConfirmationEmail(order) {
+  const trackingUrl =
+    `${process.env.BASE_URL.replace(/\/+$/, "")}/track.html`;
+
+  await axios.post(
+    "https://api.resend.com/emails",
+    {
+      from: process.env.RESEND_FROM_EMAIL,
+      to: [order.email],
+      subject: "Your BHADEX PLUGS Order Confirmation",
+      html: `
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:25px;color:#222;">
+          <h2 style="color:#d71920;">BHADEX PLUGS</h2>
+
+          <h3>Payment confirmed!</h3>
+
+          <p>Thank you for shopping with BHADEX PLUGS.</p>
+          <p>Your payment has been confirmed successfully.</p>
+
+          <p><strong>Order Reference:</strong>
+          ${escapeHtml(order.reference)}</p>
+
+          <p><strong>Product:</strong>
+          ${escapeHtml(order.product)}</p>
+
+          <p><strong>Package:</strong>
+          ${escapeHtml(order.packageName)}</p>
+
+          <p><strong>Amount:</strong>
+          GH₵${Number(order.amount).toFixed(2)}</p>
+
+          <p>
+            <a href="${escapeHtml(trackingUrl)}"
+              style="background:#d71920;color:white;padding:12px 20px;text-decoration:none;border-radius:5px;">
+              Track Your Order
+            </a>
+          </p>
+
+          <p>Thank you for choosing BHADEX PLUGS.</p>
+          <p><strong>DIGITAL ACCESS, ELEVATED</strong></p>
+        </div>
+      `
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+        "Content-Type": "application/json"
+      }
+    }
+  );
+}
+
+// SAVE PAID ORDER AND SEND EMAIL ONCE
+async function savePaidOrder(payment, metadata) {
+  const reference = payment.reference;
+  const email = payment.customer?.email || null;
+  const product = metadata.product;
+  const packageName = metadata.package;
+  const amount = payment.amount / 100;
+
+  await pool.query(
+    `INSERT INTO orders (
+      reference,
+      customer_email,
+      product,
+      package,
+      amount,
+      currency,
+      status,
+      fulfillment_status
+    )
+    VALUES ($1, $2, $3, $4, $5, 'GHS', 'PAID', 'PENDING')
+    ON CONFLICT (reference) DO NOTHING`,
+    [reference, email, product, packageName, amount]
+  );
+
+  if (!email) {
+    await pool.query(
+      `UPDATE orders
+       SET confirmation_email_status = 'SKIPPED'
+       WHERE reference = $1
+       AND confirmation_email_status = 'PENDING'`,
+      [reference]
+    );
+    return;
+  }
+
+  // Only one request can claim a pending email.
+  const claim = await pool.query(
+    `UPDATE orders
+     SET confirmation_email_status = 'SENDING'
+     WHERE reference = $1
+     AND confirmation_email_status IN ('PENDING', 'FAILED')
+     RETURNING reference`,
+    [reference]
+  );
+
+  if (claim.rows.length === 0) {
+    return;
+  }
+
+  try {
+    if (
+      !process.env.RESEND_API_KEY ||
+      !process.env.RESEND_FROM_EMAIL
+    ) {
+      throw new Error("Resend environment variables are missing.");
+    }
+
+    await sendOrderConfirmationEmail({
+      reference,
+      email,
+      product,
+      packageName,
+      amount
+    });
+
+    await pool.query(
+      `UPDATE orders
+       SET confirmation_email_status = 'SENT',
+           confirmation_email_sent_at = NOW()
+       WHERE reference = $1`,
+      [reference]
+    );
+
+    console.log("Order confirmation email sent:", reference);
+
+  } catch (error) {
+    await pool.query(
+      `UPDATE orders
+       SET confirmation_email_status = 'FAILED'
+       WHERE reference = $1`,
+      [reference]
+    );
+
+    console.error(
+      "Confirmation email error:",
+      error.response?.data || error.message
+    );
+  }
+}
+
 // RATE LIMITS
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -78,7 +232,7 @@ const paymentLimiter = rateLimit({
 });
 
 // PAYSTACK WEBHOOK
-// Keep this before express.json().
+// This must stay before express.json().
 app.post(
   "/api/payments/webhook",
   express.raw({ type: "application/json" }),
@@ -145,27 +299,7 @@ app.post(
         return res.sendStatus(400);
       }
 
-      await pool.query(
-        `INSERT INTO orders (
-          reference,
-          customer_email,
-          product,
-          package,
-          amount,
-          currency,
-          status,
-          fulfillment_status
-        )
-        VALUES ($1, $2, $3, $4, $5, 'GHS', 'PAID', 'PENDING')
-        ON CONFLICT (reference) DO NOTHING`,
-        [
-          reference,
-          payment.customer?.email || null,
-          metadata.product,
-          metadata.package,
-          payment.amount / 100
-        ]
-      );
+      await savePaidOrder(payment, metadata);
 
       return res.sendStatus(200);
 
@@ -562,7 +696,6 @@ app.post(
         });
       }
 
-      // Calculate the price on the server.
       const amount = PRODUCT_PRICES[product][packageIndex];
       const packageName = PACKAGE_NAMES[packageIndex];
 
@@ -644,27 +777,7 @@ app.get("/api/payments/verify/:reference", async (req, res) => {
       });
     }
 
-    await pool.query(
-      `INSERT INTO orders (
-        reference,
-        customer_email,
-        product,
-        package,
-        amount,
-        currency,
-        status,
-        fulfillment_status
-      )
-      VALUES ($1, $2, $3, $4, $5, 'GHS', 'PAID', 'PENDING')
-      ON CONFLICT (reference) DO NOTHING`,
-      [
-        payment.reference,
-        payment.customer?.email || null,
-        metadata.product,
-        metadata.package,
-        payment.amount / 100
-      ]
-    );
+    await savePaidOrder(payment, metadata);
 
     return res.json({
       success: true,
@@ -688,6 +801,15 @@ app.get("/api/payments/verify/:reference", async (req, res) => {
 async function startServer() {
   try {
     await initializeDatabase();
+
+    // Add email tracking columns safely to existing orders table.
+    await pool.query(`
+      ALTER TABLE orders
+        ADD COLUMN IF NOT EXISTS confirmation_email_status
+          VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+        ADD COLUMN IF NOT EXISTS confirmation_email_sent_at
+          TIMESTAMPTZ;
+    `);
 
     app.listen(PORT, () => {
       console.log(

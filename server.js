@@ -4,19 +4,16 @@ require("dotenv").config();
 const express = require("express");
 const axios = require("axios");
 const path = require("path");
-const fs = require("fs");
+const { pool, initializeDatabase } = require("./database");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.json());
-app.use(express.static(path.join(__dirname, "public")));
-
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
 const BASE_URL = process.env.BASE_URL;
 
-// TEST-ONLY LOCAL ORDER STORAGE
-const ordersFile = path.join(__dirname, "orders.json");
+app.use(express.json());
+app.use(express.static(path.join(__dirname, "public")));
 
 const products = {
   "Netflix": [35, 90, 170, 320, 450],
@@ -39,35 +36,11 @@ const packageNames = [
   "Ultimate"
 ];
 
-function loadOrders() {
-  try {
-    if (!fs.existsSync(ordersFile)) {
-      return [];
-    }
-
-    const data = fs.readFileSync(ordersFile, "utf8");
-    const orders = JSON.parse(data);
-
-    return Array.isArray(orders) ? orders : [];
-  } catch (error) {
-    console.error("Order file error:", error.message);
-    return [];
-  }
-}
-
-function saveOrders(orders) {
-  fs.writeFileSync(
-    ordersFile,
-    JSON.stringify(orders, null, 2),
-    "utf8"
-  );
-}
-
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-// Initialize payment
+// Initialize Paystack payment
 app.post("/api/payments/initialize", async (req, res) => {
   try {
     if (!PAYSTACK_SECRET_KEY || !BASE_URL) {
@@ -117,7 +90,6 @@ app.post("/api/payments/initialize", async (req, res) => {
         currency: "GHS",
         callback_url:
           `${BASE_URL.replace(/\/+$/, "")}/payment.html`,
-
         metadata: {
           bhadex_product: product,
           bhadex_package: packageName,
@@ -140,10 +112,8 @@ app.post("/api/payments/initialize", async (req, res) => {
     }
 
     res.json({
-      authorization_url:
-        response.data.data.authorization_url,
-      reference:
-        response.data.data.reference
+      authorization_url: response.data.data.authorization_url,
+      reference: response.data.data.reference
     });
 
   } catch (error) {
@@ -158,7 +128,7 @@ app.post("/api/payments/initialize", async (req, res) => {
   }
 });
 
-// Verify payment and record successful test orders
+// Verify payment and save successful orders in PostgreSQL
 app.get("/api/payments/verify/:reference", async (req, res) => {
   try {
     if (!PAYSTACK_SECRET_KEY) {
@@ -194,7 +164,6 @@ app.get("/api/payments/verify/:reference", async (req, res) => {
     }
 
     const product = payment.metadata?.bhadex_product;
-
     const packageIndex = Number(
       payment.metadata?.bhadex_package_index
     );
@@ -204,18 +173,17 @@ app.get("/api/payments/verify/:reference", async (req, res) => {
 
     const validOrder =
       typeof expectedPrice === "number" &&
-      payment.metadata?.bhadex_package === expectedPackage &&
       Number.isInteger(packageIndex) &&
       packageIndex >= 0 &&
-      packageIndex < packageNames.length;
+      packageIndex < packageNames.length &&
+      payment.metadata?.bhadex_package === expectedPackage;
 
     const validPayment =
       payment.status === "success" &&
       payment.currency === "GHS" &&
       payment.reference === reference &&
       validOrder &&
-      Number(payment.amount) ===
-        Math.round(expectedPrice * 100);
+      Number(payment.amount) === Math.round(expectedPrice * 100);
 
     if (!validPayment) {
       return res.json({
@@ -226,28 +194,37 @@ app.get("/api/payments/verify/:reference", async (req, res) => {
       });
     }
 
-    // Avoid duplicate order records for the same reference.
-    let orders = loadOrders();
+    const customerEmail = payment.customer?.email || null;
 
-    let order = orders.find(
-      item => item.reference === reference
+    const saved = await pool.query(
+      `INSERT INTO orders
+        (reference, customer_email, product, package, amount, currency, status)
+       VALUES ($1, $2, $3, $4, $5, $6, 'PAID')
+       ON CONFLICT (reference) DO NOTHING
+       RETURNING *`,
+      [
+        reference,
+        customerEmail,
+        product,
+        expectedPackage,
+        expectedPrice,
+        "GHS"
+      ]
     );
 
+    let order = saved.rows[0];
+
     if (!order) {
-      order = {
-        reference: payment.reference,
-        product,
-        package: expectedPackage,
-        amount: expectedPrice,
-        currency: "GHS",
-        status: "PAID",
-        createdAt: new Date().toISOString()
-      };
+      const existing = await pool.query(
+        "SELECT * FROM orders WHERE reference = $1",
+        [reference]
+      );
 
-      orders.push(order);
-      saveOrders(orders);
+      order = existing.rows[0];
+    }
 
-      console.log("New verified order recorded:", reference);
+    if (!order) {
+      throw new Error("Verified order could not be saved.");
     }
 
     res.json({
@@ -256,7 +233,7 @@ app.get("/api/payments/verify/:reference", async (req, res) => {
       reference: order.reference,
       product: order.product,
       package: order.package,
-      amount: order.amount,
+      amount: Number(order.amount),
       currency: order.currency,
       orderStatus: order.status
     });
@@ -273,18 +250,40 @@ app.get("/api/payments/verify/:reference", async (req, res) => {
   }
 });
 
-// TEST-ONLY: display order count (not customer order details)
-app.get("/api/orders/count", (req, res) => {
-  const orders = loadOrders();
+// Display total number of recorded orders
+app.get("/api/orders/count", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT COUNT(*) AS total FROM orders"
+    );
 
-  res.json({
-    totalOrders: orders.length
-  });
+    res.json({
+      totalOrders: Number(result.rows[0].total)
+    });
+
+  } catch (error) {
+    console.error("Order count error:", error.message);
+
+    res.status(500).json({
+      message: "Unable to retrieve order count."
+    });
+  }
 });
 
-app.listen(PORT, () => {
-  console.log(
-    `BHADEX PLUGS server running on port ${PORT}`
-  );
-});
-    
+// Start only after the database is ready
+async function startServer() {
+  try {
+    await initializeDatabase();
+
+    app.listen(PORT, () => {
+      console.log(
+        `BHADEX PLUGS server running on port ${PORT}`
+      );
+    });
+  } catch (error) {
+    console.error("Database startup error:", error.message);
+    process.exit(1);
+  }
+}
+
+startServer();

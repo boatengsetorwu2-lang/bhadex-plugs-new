@@ -12,9 +12,7 @@ const products = [
   {name:"Google One",category:"Cloud",prices:[15,40,75,140,200]}
 ];
 
-const packageNames = [
-  "Basic","Standard","Premium","Advanced","Ultimate"
-];
+const packageNames = ["Basic","Standard","Premium","Advanced","Ultimate"];
 
 let activeCategory = "All";
 
@@ -27,12 +25,10 @@ function renderProducts() {
   const term = search ? search.value.toLowerCase().trim() : "";
 
   const filtered = products.filter(product => {
-    const matchesCategory =
-      activeCategory === "All" ||
-      product.category === activeCategory;
-
-    return matchesCategory &&
-      product.name.toLowerCase().includes(term);
+    return (
+      (activeCategory === "All" || product.category === activeCategory) &&
+      product.name.toLowerCase().includes(term)
+    );
   });
 
   if (!filtered.length) {
@@ -46,7 +42,6 @@ function renderProducts() {
       <p class="product-category">${product.category.toUpperCase()}</p>
       <h2>${product.name}</h2>
       <p>Choose the package that suits your needs.</p>
-
       <label>Select package</label>
       <select class="package-select">
         ${product.prices.map((price, i) => `
@@ -55,9 +50,7 @@ function renderProducts() {
           </option>
         `).join("")}
       </select>
-
-      <button class="btn primary buy-button"
-        data-product="${product.name}">
+      <button class="btn primary buy-button" data-product="${product.name}">
         Buy Now ↗
       </button>
     </article>
@@ -83,7 +76,7 @@ document.querySelectorAll(".category").forEach(button => {
 if (grid) {
   grid.addEventListener("click", async event => {
     const button = event.target.closest(".buy-button");
-    if (!button) return;
+    if (!button || button.disabled) return;
 
     const product = products.find(
       item => item.name === button.dataset.product
@@ -122,7 +115,7 @@ if (grid) {
       const result = await response.json();
 
       if (!response.ok || !result.authorization_url) {
-        throw new Error(result.message || "Could not start payment.");
+        throw new Error(result.error || result.message || "Could not start payment.");
       }
 
       window.location.href = result.authorization_url;

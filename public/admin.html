@@ -5,23 +5,33 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>BHADEX PLUGS | Admin Dashboard</title>
+
   <style>
     :root {
       --red: #ff263d;
       --dark: #080808;
-      --panel: #141414;
+      --panel: #121212;
       --white: #fff;
       --muted: #999;
-      --border: rgba(255,255,255,.1);
+      --border: rgba(255,255,255,.12);
     }
 
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
 
     body {
       background: var(--dark);
       color: var(--white);
       font-family: Arial, sans-serif;
-      padding: 25px;
+      padding: 24px;
+    }
+
+    .container {
+      max-width: 1250px;
+      margin: auto;
     }
 
     header {
@@ -33,314 +43,646 @@
       flex-wrap: wrap;
     }
 
-    .brand { font-size: 22px; font-weight: 800; }
-    .brand span { color: var(--red); }
+    h1 span {
+      color: var(--red);
+    }
+
+    h2 {
+      font-size: 20px;
+      margin-bottom: 18px;
+    }
+
+    .muted {
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 7px;
+    }
+
+    button, input, select {
+      font: inherit;
+    }
 
     button {
       border: 0;
       border-radius: 7px;
-      padding: 12px 18px;
+      padding: 11px 16px;
+      background: var(--red);
+      color: white;
       cursor: pointer;
       font-weight: bold;
     }
 
-    .primary { background: var(--red); color: white; }
-    .secondary { background: #292929; color: white; }
+    button:hover {
+      opacity: .85;
+    }
+
+    button:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+    }
+
+    .secondary {
+      background: #292929;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 22px;
+      margin-bottom: 22px;
+    }
+
+    .login-box {
+      max-width: 420px;
+      margin: 90px auto;
+    }
+
+    input, select {
+      background: #080808;
+      color: white;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 12px;
+      outline: none;
+      width: 100%;
+    }
+
+    input:focus, select:focus {
+      border-color: var(--red);
+    }
+
+    .login-box input {
+      margin: 10px 0 15px;
+    }
+
+    .login-box button {
+      width: 100%;
+    }
 
     .stats {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
       gap: 15px;
       margin-bottom: 25px;
     }
 
-    .stat, .orders-panel {
+    .stat {
       background: var(--panel);
       border: 1px solid var(--border);
-      border-radius: 12px;
       padding: 20px;
+      border-radius: 10px;
     }
 
-    .stat p { color: var(--muted); margin-bottom: 12px; }
-    .stat h2 { font-size: 28px; }
+    .stat p {
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 12px;
+    }
 
-    .orders-panel h2 { margin-bottom: 18px; }
+    .stat h3 {
+      font-size: 25px;
+    }
 
-    .toolbar {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
+    .filters {
+      display: grid;
+      grid-template-columns: 1fr 220px auto;
+      gap: 12px;
       margin-bottom: 18px;
     }
 
-    input {
-      background: #222;
-      border: 1px solid var(--border);
-      color: white;
-      border-radius: 7px;
-      padding: 12px;
-      min-width: 220px;
-      flex: 1;
+    .table-wrap {
+      overflow-x: auto;
     }
-
-    .table-wrap { overflow-x: auto; }
 
     table {
       width: 100%;
       border-collapse: collapse;
-      min-width: 850px;
+      min-width: 950px;
     }
 
     th, td {
       text-align: left;
-      padding: 14px 10px;
+      padding: 14px 12px;
       border-bottom: 1px solid var(--border);
       font-size: 13px;
+      vertical-align: middle;
     }
 
-    th { color: var(--muted); }
+    th {
+      color: var(--muted);
+      font-weight: 600;
+    }
 
     .status {
       display: inline-block;
       padding: 6px 9px;
-      border-radius: 5px;
-      background: #193d2b;
-      color: #75e6a4;
+      border-radius: 20px;
+      background: #292929;
+      font-size: 11px;
+      font-weight: bold;
     }
 
-    #message {
+    .paid, .delivered {
+      color: #55d995;
+      background: rgba(85,217,149,.12);
+    }
+
+    .pending {
+      color: #f4c15d;
+      background: rgba(244,193,93,.12);
+    }
+
+    .processing {
+      color: #73b7ff;
+      background: rgba(115,183,255,.12);
+    }
+
+    .cancelled, .failed {
+      color: #ff6878;
+      background: rgba(255,104,120,.12);
+    }
+
+    .action-cell {
+      min-width: 180px;
+    }
+
+    .action-cell select {
+      margin-bottom: 7px;
+      min-width: 150px;
+    }
+
+    .save-btn {
+      padding: 8px 12px;
+      font-size: 12px;
+    }
+
+    .message {
       color: var(--muted);
-      margin-top: 15px;
+      margin: 12px 0;
+      font-size: 13px;
     }
 
-    #loginScreen {
-      max-width: 400px;
-      margin: 100px auto;
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 25px;
+    .error {
+      color: #ff6878;
     }
 
-    #loginScreen h2 { margin-bottom: 20px; }
-    #loginScreen input { width: 100%; margin-bottom: 12px; }
-    #loginScreen button { width: 100%; }
+    .success {
+      color: #55d995;
+    }
 
-    #dashboard { display: none; }
+    .hidden {
+      display: none !important;
+    }
 
-    @media(max-width: 600px) {
-      body { padding: 15px; }
+    @media (max-width: 650px) {
+      body {
+        padding: 14px;
+      }
+
+      .filters {
+        grid-template-columns: 1fr;
+      }
+
+      .login-box {
+        margin: 45px auto;
+      }
     }
   </style>
 </head>
 
 <body>
+  <div class="container">
 
-  <div id="loginScreen">
-    <h2>BHADEX <span style="color:#ff263d">ADMIN</span></h2>
-    <p style="color:#999;margin-bottom:20px">
-      Sign in to your administrator account.
-    </p>
+    <section id="loginSection" class="panel login-box">
+      <h1>BHADEX <span>PLUGS</span></h1>
+      <p class="muted">Administrator login</p>
 
-    <input
-      type="password"
-      id="password"
-      placeholder="Admin password"
-      autocomplete="current-password"
-    >
+      <form id="loginForm">
+        <label for="adminPassword">Admin password</label>
+        <input
+          type="password"
+          id="adminPassword"
+          placeholder="Enter admin password"
+          required
+        >
+        <button type="submit" id="loginButton">Login</button>
+      </form>
 
-    <button class="primary" onclick="login()">Login</button>
-    <p id="loginMessage" style="margin-top:15px;color:#ff5365"></p>
+      <p id="loginMessage" class="message"></p>
+    </section>
+
+    <section id="dashboardSection" class="hidden">
+
+      <header>
+        <div>
+          <h1>BHADEX <span>PLUGS</span></h1>
+          <p class="muted">Order management dashboard</p>
+        </div>
+
+        <button id="logoutButton" class="secondary">Logout</button>
+      </header>
+
+      <div class="stats">
+        <div class="stat">
+          <p>Total Orders</p>
+          <h3 id="totalOrders">0</h3>
+        </div>
+
+        <div class="stat">
+          <p>Paid Orders</p>
+          <h3 id="paidOrders">0</h3>
+        </div>
+
+        <div class="stat">
+          <p>Total Revenue</p>
+          <h3 id="totalRevenue">GH₵0.00</h3>
+        </div>
+
+        <div class="stat">
+          <p>Pending Delivery</p>
+          <h3 id="pendingOrders">0</h3>
+        </div>
+
+        <div class="stat">
+          <p>Processing</p>
+          <h3 id="processingOrders">0</h3>
+        </div>
+
+        <div class="stat">
+          <p>Delivered</p>
+          <h3 id="deliveredOrders">0</h3>
+        </div>
+
+        <div class="stat">
+          <p>Cancelled</p>
+          <h3 id="cancelledOrders">0</h3>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Customer Orders</h2>
+
+        <div class="filters">
+          <input
+            type="search"
+            id="searchInput"
+            placeholder="Search email, product or reference..."
+          >
+
+          <select id="statusFilter">
+            <option value="">All delivery statuses</option>
+            <option value="PENDING">Pending</option>
+            <option value="PROCESSING">Processing</option>
+            <option value="DELIVERED">Delivered</option>
+            <option value="CANCELLED">Cancelled</option>
+          </select>
+
+          <button id="refreshButton" class="secondary">Refresh</button>
+        </div>
+
+        <p id="ordersMessage" class="message"></p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Reference</th>
+                <th>Customer Email</th>
+                <th>Product</th>
+                <th>Package</th>
+                <th>Amount</th>
+                <th>Payment</th>
+                <th>Delivery Status</th>
+                <th>Delivered At</th>
+                <th>Update Delivery</th>
+              </tr>
+            </thead>
+
+            <tbody id="ordersTable">
+              <tr>
+                <td colspan="9">Loading orders...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
   </div>
 
-  <main id="dashboard">
-
-    <header>
-      <div class="brand">BHADEX <span>PLUGS</span></div>
-      <button class="secondary" onclick="logout()">Logout</button>
-    </header>
-
-    <h1 style="margin-bottom:8px">Admin Dashboard</h1>
-    <p style="color:#999;margin-bottom:25px">
-      Manage your marketplace orders.
-    </p>
-
-    <section class="stats">
-      <div class="stat">
-        <p>Total Orders</p>
-        <h2 id="totalOrders">—</h2>
-      </div>
-
-      <div class="stat">
-        <p>Paid Orders</p>
-        <h2 id="paidOrders">—</h2>
-      </div>
-
-      <div class="stat">
-        <p>Total Revenue</p>
-        <h2 id="totalRevenue">—</h2>
-      </div>
-    </section>
-
-    <section class="orders-panel">
-      <h2>Customer Orders</h2>
-
-      <div class="toolbar">
-        <input
-          id="search"
-          type="search"
-          placeholder="Search by email or reference"
-          oninput="filterOrders()"
-        >
-
-        <button class="primary" onclick="loadOrders()">
-          Refresh
-        </button>
-      </div>
-
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Reference</th>
-              <th>Email</th>
-              <th>Product</th>
-              <th>Package</th>
-              <th>Amount</th>
-              <th>Status</th>
-              <th>Date</th>
-            </tr>
-          </thead>
-          <tbody id="ordersBody"></tbody>
-        </table>
-      </div>
-
-      <p id="message">Sign in to load orders.</p>
-    </section>
-
-  </main>
-
   <script>
-    let orders = [];
+    const loginSection = document.getElementById("loginSection");
+    const dashboardSection = document.getElementById("dashboardSection");
+    const loginForm = document.getElementById("loginForm");
+    const loginMessage = document.getElementById("loginMessage");
+    const ordersMessage = document.getElementById("ordersMessage");
+    const ordersTable = document.getElementById("ordersTable");
 
-    async function login() {
-      const password = document.getElementById("password").value;
-      const message = document.getElementById("loginMessage");
+    const statusOptions = [
+      "PENDING",
+      "PROCESSING",
+      "DELIVERED",
+      "CANCELLED"
+    ];
 
-      message.textContent = "Checking login...";
-
-      try {
-        const response = await fetch("/api/admin/login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ password })
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.message || "Login failed.");
-        }
-
-        document.getElementById("loginScreen").style.display = "none";
-        document.getElementById("dashboard").style.display = "block";
-
-        await loadOrders();
-
-      } catch (error) {
-        message.textContent = error.message;
-      }
+    function showMessage(element, message, type = "") {
+      element.textContent = message;
+      element.className = "message " + type;
     }
 
-    async function logout() {
-      await fetch("/api/admin/logout", { method: "POST" });
-      location.reload();
+    function formatMoney(amount) {
+      return "GH₵" + Number(amount || 0).toFixed(2);
+    }
+
+    function formatDate(date) {
+      if (!date) return "—";
+
+      const parsed = new Date(date);
+
+      if (Number.isNaN(parsed.getTime())) return "—";
+
+      return parsed.toLocaleString();
+    }
+
+    function makeStatus(text) {
+      const span = document.createElement("span");
+      const value = String(text || "UNKNOWN").toUpperCase();
+
+      span.className = "status " + value.toLowerCase();
+      span.textContent = value;
+
+      return span;
+    }
+
+    async function apiRequest(url, options = {}) {
+      const response = await fetch(url, {
+        credentials: "same-origin",
+        ...options,
+        headers: {
+          ...(options.headers || {})
+        }
+      });
+
+      if (response.status === 401) {
+        showLogin();
+        throw new Error("Your session has expired. Please log in again.");
+      }
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.message || data.error || "Request failed.");
+      }
+
+      return data;
+    }
+
+    function showLogin() {
+      dashboardSection.classList.add("hidden");
+      loginSection.classList.remove("hidden");
+    }
+
+    function showDashboard() {
+      loginSection.classList.add("hidden");
+      dashboardSection.classList.remove("hidden");
+      loadOrders();
+    }
+
+    loginForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      const button = document.getElementById("loginButton");
+      button.disabled = true;
+      button.textContent = "Logging in...";
+
+      showMessage(loginMessage, "");
+
+      try {
+        await apiRequest("/api/admin/login", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            password: document.getElementById("adminPassword").value
+          })
+        });
+
+        document.getElementById("adminPassword").value = "";
+        showDashboard();
+
+      } catch (error) {
+        showMessage(loginMessage, error.message, "error");
+      } finally {
+        button.disabled = false;
+        button.textContent = "Login";
+      }
+    });
+
+    document.getElementById("logoutButton").addEventListener("click", async () => {
+      try {
+        await apiRequest("/api/admin/logout", {
+          method: "POST"
+        });
+      } catch (error) {
+        // Return to login even if the session has already expired.
+      }
+
+      showLogin();
+    });
+
+    function updateStats(stats = {}) {
+      document.getElementById("totalOrders").textContent =
+        stats.totalOrders ?? 0;
+
+      document.getElementById("paidOrders").textContent =
+        stats.paidOrders ?? 0;
+
+      document.getElementById("totalRevenue").textContent =
+        formatMoney(stats.totalRevenue);
+
+      document.getElementById("pendingOrders").textContent =
+        stats.pendingOrders ?? 0;
+
+      document.getElementById("processingOrders").textContent =
+        stats.processingOrders ?? 0;
+
+      document.getElementById("deliveredOrders").textContent =
+        stats.deliveredOrders ?? 0;
+
+      document.getElementById("cancelledOrders").textContent =
+        stats.cancelledOrders ?? 0;
+    }
+
+    function createCell(value) {
+      const cell = document.createElement("td");
+      cell.textContent = value == null || value === "" ? "—" : String(value);
+      return cell;
+    }
+
+    function createOrderRow(order) {
+      const row = document.createElement("tr");
+
+      row.appendChild(createCell(order.reference));
+      row.appendChild(createCell(order.customer_email));
+      row.appendChild(createCell(order.product));
+      row.appendChild(createCell(order.package));
+      row.appendChild(createCell(formatMoney(order.amount)));
+
+      const paymentCell = document.createElement("td");
+      paymentCell.appendChild(makeStatus(order.status));
+      row.appendChild(paymentCell);
+
+      const deliveryCell = document.createElement("td");
+      deliveryCell.appendChild(makeStatus(order.fulfillment_status));
+      row.appendChild(deliveryCell);
+
+      row.appendChild(createCell(formatDate(order.delivered_at)));
+
+      const actionCell = document.createElement("td");
+      actionCell.className = "action-cell";
+
+      const select = document.createElement("select");
+
+      statusOptions.forEach((status) => {
+        const option = document.createElement("option");
+        option.value = status;
+        option.textContent = status;
+        select.appendChild(option);
+      });
+
+      select.value = statusOptions.includes(
+        String(order.fulfillment_status || "").toUpperCase()
+      ) ? String(order.fulfillment_status).toUpperCase() : "PENDING";
+
+      const saveButton = document.createElement("button");
+      saveButton.textContent = "Save Status";
+      saveButton.className = "save-btn";
+
+      saveButton.addEventListener("click", async () => {
+        saveButton.disabled = true;
+        saveButton.textContent = "Saving...";
+
+        try {
+          await apiRequest(
+            "/api/admin/orders/" +
+            encodeURIComponent(order.reference) +
+            "/status",
+            {
+              method: "PATCH",
+              headers: {
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                fulfillmentStatus: select.value
+              })
+            }
+          );
+
+          showMessage(
+            ordersMessage,
+            "Delivery status updated successfully.",
+            "success"
+          );
+
+          await loadOrders();
+
+        } catch (error) {
+          showMessage(ordersMessage, error.message, "error");
+        } finally {
+          saveButton.disabled = false;
+          saveButton.textContent = "Save Status";
+        }
+      });
+
+      actionCell.appendChild(select);
+      actionCell.appendChild(saveButton);
+      row.appendChild(actionCell);
+
+      return row;
     }
 
     async function loadOrders() {
-      const message = document.getElementById("message");
-      message.textContent = "Loading orders...";
+      showMessage(ordersMessage, "Loading orders...");
+      ordersTable.replaceChildren();
+
+      const search = document.getElementById("searchInput").value.trim();
+      const status = document.getElementById("statusFilter").value;
+
+      const params = new URLSearchParams();
+
+      if (search) params.set("search", search);
+      if (status) params.set("status", status);
 
       try {
-        const response = await fetch("/api/admin/orders");
-        const data = await response.json();
+        const data = await apiRequest(
+          "/api/admin/orders?" + params.toString()
+        );
 
-        if (!response.ok) {
-          throw new Error(data.message || "Could not load orders.");
+        updateStats(data.stats || {});
+
+        const orders = Array.isArray(data.orders) ? data.orders : [];
+
+        if (orders.length === 0) {
+          const row = document.createElement("tr");
+          const cell = createCell("No orders found.");
+          cell.colSpan = 9;
+          row.appendChild(cell);
+          ordersTable.appendChild(row);
+        } else {
+          orders.forEach((order) => {
+            ordersTable.appendChild(createOrderRow(order));
+          });
         }
 
-        orders = data.orders || [];
-
-        document.getElementById("totalOrders").textContent =
-          data.stats.totalOrders;
-
-        document.getElementById("paidOrders").textContent =
-          data.stats.paidOrders;
-
-        document.getElementById("totalRevenue").textContent =
-          "GHS " + Number(data.stats.totalRevenue).toFixed(2);
-
-        renderOrders(orders);
-        message.textContent = orders.length + " order(s) found.";
+        showMessage(
+          ordersMessage,
+          orders.length + " order(s) displayed.",
+          "success"
+        );
 
       } catch (error) {
-        message.textContent = error.message;
-      }
-    }
+        showMessage(ordersMessage, error.message, "error");
 
-    function renderOrders(items) {
-      const body = document.getElementById("ordersBody");
-      body.replaceChildren();
-
-      if (!items.length) {
-        body.innerHTML =
-          '<tr><td colspan="7">No orders found.</td></tr>';
-        return;
-      }
-
-      items.forEach(order => {
         const row = document.createElement("tr");
-
-        const values = [
-          order.reference,
-          order.customer_email || "—",
-          order.product,
-          order.package,
-          "GHS " + Number(order.amount).toFixed(2),
-          order.status,
-          new Date(order.created_at).toLocaleString()
-        ];
-
-        values.forEach((value, index) => {
-          const cell = document.createElement("td");
-
-          if (index === 5) {
-            const badge = document.createElement("span");
-            badge.className = "status";
-            badge.textContent = value;
-            cell.appendChild(badge);
-          } else {
-            cell.textContent = value;
-          }
-
-          row.appendChild(cell);
-        });
-
-        body.appendChild(row);
-      });
+        const cell = createCell("Unable to load orders.");
+        cell.colSpan = 9;
+        row.appendChild(cell);
+        ordersTable.appendChild(row);
+      }
     }
 
-    function filterOrders() {
-      const term = document.getElementById("search").value.toLowerCase();
+    document.getElementById("refreshButton").addEventListener(
+      "click",
+      loadOrders
+    );
 
-      const filtered = orders.filter(order =>
-        String(order.reference).toLowerCase().includes(term) ||
-        String(order.customer_email || "").toLowerCase().includes(term)
-      );
+    document.getElementById("statusFilter").addEventListener(
+      "change",
+      loadOrders
+    );
 
-      renderOrders(filtered);
+    let searchTimer;
+
+    document.getElementById("searchInput").addEventListener(
+      "input",
+      () => {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(loadOrders, 350);
+      }
+    );
+
+    async function checkSession() {
+      try {
+        await apiRequest("/api/admin/orders");
+        showDashboard();
+      } catch (error) {
+        showLogin();
+      }
     }
+
+    checkSession();
   </script>
-
 </body>
 </html>

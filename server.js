@@ -25,7 +25,10 @@ const SESSION_SECRET = process.env.SESSION_SECRET;
 
 app.set("trust proxy", 1);
 
-// Product prices in Ghana cedis
+// ==================================================
+// PRODUCTS
+// ==================================================
+
 const products = {
   "Netflix": [35, 90, 170, 320, 450],
   "YouTube Premium": [20, 55, 100, 190, 260],
@@ -47,8 +50,15 @@ const packageNames = [
   "Ultimate"
 ];
 
+const fulfillmentStatuses = [
+  "PENDING",
+  "PROCESSING",
+  "DELIVERED",
+  "CANCELLED"
+];
+
 // ==================================================
-// SECURITY HEADERS
+// SECURITY
 // ==================================================
 
 app.use(helmet({
@@ -128,6 +138,7 @@ app.post(
       }
 
       const product = payment.metadata?.bhadex_product;
+
       const packageIndex = Number(
         payment.metadata?.bhadex_package_index
       );
@@ -144,7 +155,7 @@ app.post(
         Number(payment.amount) === Math.round(expectedPrice * 100);
 
       if (!validOrder) {
-        console.error("Webhook payment details did not match:", reference);
+        console.error("Webhook order mismatch:", reference);
         return res.sendStatus(400);
       }
 
@@ -164,11 +175,12 @@ app.post(
       );
 
       console.log("Paystack webhook recorded:", reference);
+
       return res.sendStatus(200);
 
     } catch (error) {
       console.error(
-        "Paystack webhook error:",
+        "Webhook error:",
         error.response?.data || error.message
       );
 
@@ -220,7 +232,7 @@ app.use(
 );
 
 // ==================================================
-// RATE LIMITING
+// LOGIN RATE LIMITER
 // ==================================================
 
 const loginLimiter = rateLimit({
@@ -279,8 +291,6 @@ app.post(
 
       req.session.regenerate((error) => {
         if (error) {
-          console.error("Session error:", error.message);
-
           return res.status(500).json({
             message: "Unable to create administrator session."
           });
@@ -290,8 +300,6 @@ app.post(
 
         req.session.save((saveError) => {
           if (saveError) {
-            console.error("Session save error:", saveError.message);
-
             return res.status(500).json({
               message: "Unable to save administrator session."
             });
@@ -340,13 +348,26 @@ app.post("/api/admin/logout", requireAdmin, (req, res) => {
 });
 
 // ==================================================
-// ADMIN ORDER DASHBOARD API
+// ADMIN ORDER MANAGEMENT
 // ==================================================
 
 app.get("/api/admin/orders", requireAdmin, async (req, res) => {
   try {
-    const ordersResult = await pool.query(
+    const status = String(req.query.status || "ALL").toUpperCase();
+    const search = String(req.query.search || "").trim().slice(0, 100);
+
+    if (
+      status !== "ALL" &&
+      !fulfillmentStatuses.includes(status)
+    ) {
+      return res.status(400).json({
+        message: "Invalid delivery status."
+      });
+    }
+
+    const result = await pool.query(
       `SELECT
+        id,
         reference,
         customer_email,
         product,
@@ -354,32 +375,63 @@ app.get("/api/admin/orders", requireAdmin, async (req, res) => {
         amount,
         currency,
         status,
-        created_at
+        fulfillment_status,
+        delivered_at,
+        fulfillment_updated_at,
+        created_at,
+        updated_at
        FROM orders
+       WHERE
+         ($1 = 'ALL' OR fulfillment_status = $1)
+         AND (
+           $2 = ''
+           OR reference ILIKE '%' || $2 || '%'
+           OR COALESCE(customer_email, '') ILIKE '%' || $2 || '%'
+           OR product ILIKE '%' || $2 || '%'
+         )
        ORDER BY created_at DESC
-       LIMIT 200`
+       LIMIT 200`,
+      [status, search]
     );
 
     const statsResult = await pool.query(
       `SELECT
         COUNT(*) AS total_orders,
-        COUNT(*) FILTER (WHERE status = 'PAID') AS paid_orders,
+        COUNT(*) FILTER (
+          WHERE status = 'PAID'
+        ) AS paid_orders,
         COALESCE(
           SUM(amount) FILTER (WHERE status = 'PAID'),
           0
-        ) AS total_revenue
+        ) AS total_revenue,
+        COUNT(*) FILTER (
+          WHERE fulfillment_status = 'PENDING'
+        ) AS pending_orders,
+        COUNT(*) FILTER (
+          WHERE fulfillment_status = 'PROCESSING'
+        ) AS processing_orders,
+        COUNT(*) FILTER (
+          WHERE fulfillment_status = 'DELIVERED'
+        ) AS delivered_orders,
+        COUNT(*) FILTER (
+          WHERE fulfillment_status = 'CANCELLED'
+        ) AS cancelled_orders
        FROM orders`
     );
 
     const stats = statsResult.rows[0];
 
     res.json({
-      orders: ordersResult.rows,
+      orders: result.rows,
 
       stats: {
         totalOrders: Number(stats.total_orders),
         paidOrders: Number(stats.paid_orders),
-        totalRevenue: Number(stats.total_revenue)
+        totalRevenue: Number(stats.total_revenue),
+        pendingOrders: Number(stats.pending_orders),
+        processingOrders: Number(stats.processing_orders),
+        deliveredOrders: Number(stats.delivered_orders),
+        cancelledOrders: Number(stats.cancelled_orders)
       }
     });
 
@@ -391,6 +443,88 @@ app.get("/api/admin/orders", requireAdmin, async (req, res) => {
     });
   }
 });
+
+// ==================================================
+// UPDATE ORDER DELIVERY STATUS
+// ==================================================
+
+app.patch(
+  "/api/admin/orders/:reference/status",
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const reference = req.params.reference;
+      const newStatus = String(
+        req.body?.fulfillmentStatus || ""
+      ).toUpperCase();
+
+      if (!/^[a-zA-Z0-9_-]{1,100}$/.test(reference)) {
+        return res.status(400).json({
+          message: "Invalid order reference."
+        });
+      }
+
+      if (!fulfillmentStatuses.includes(newStatus)) {
+        return res.status(400).json({
+          message: "Invalid delivery status."
+        });
+      }
+
+      const result = await pool.query(
+        `UPDATE orders
+         SET
+           fulfillment_status = $1,
+           delivered_at = CASE
+             WHEN $1 = 'DELIVERED' THEN COALESCE(delivered_at, NOW())
+             ELSE NULL
+           END,
+           fulfillment_updated_at = NOW(),
+           updated_at = NOW()
+         WHERE reference = $2
+           AND status = 'PAID'
+         RETURNING
+           reference,
+           product,
+           package,
+           status,
+           fulfillment_status,
+           delivered_at,
+           fulfillment_updated_at`,
+        [newStatus, reference]
+      );
+
+      if (result.rowCount === 0) {
+        const existing = await pool.query(
+          "SELECT reference, status FROM orders WHERE reference = $1",
+          [reference]
+        );
+
+        if (existing.rowCount === 0) {
+          return res.status(404).json({
+            message: "Order not found."
+          });
+        }
+
+        return res.status(400).json({
+          message: "Only successfully paid orders can be processed."
+        });
+      }
+
+      res.json({
+        success: true,
+        message: "Order delivery status updated.",
+        order: result.rows[0]
+      });
+
+    } catch (error) {
+      console.error("Order status update error:", error.message);
+
+      res.status(500).json({
+        message: "Unable to update order status."
+      });
+    }
+  }
+);
 
 // ==================================================
 // HOMEPAGE

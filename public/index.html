@@ -2,22 +2,331 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#080808">
-<title>BHADEX PLUGS | Digital Access Elevated</title>
-<link rel="stylesheet" href="styles.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#080808">
+
+  <meta name="description" content="Discover digital services and subscriptions at BHADEX PLUGS. Explore entertainment, creativity and productivity in one marketplace.">
+
+  <title>BHADEX PLUGS | Digital Access, Elevated</title>
+
+  <link rel="stylesheet" href="styles.css">
+
+  <style>
+    /* PREMIUM HOMEPAGE ADDITIONS */
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      background: rgba(8,8,8,.92);
+      border-bottom: 1px solid rgba(255,255,255,.08);
+    }
+
+    .brand {
+      text-decoration: none;
+    }
+
+    nav a {
+      text-decoration: none;
+    }
+
+    .hero {
+      min-height: 650px;
+      padding-top: 90px;
+      padding-bottom: 90px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero::before {
+      content: "";
+      position: absolute;
+      width: 450px;
+      height: 450px;
+      background: rgba(255,38,61,.10);
+      filter: blur(110px);
+      border-radius: 50%;
+      top: 10%;
+      right: 10%;
+      pointer-events: none;
+    }
+
+    .hero-copy,
+    .hero-art {
+      position: relative;
+      z-index: 1;
+    }
+
+    .eyebrow {
+      letter-spacing: 2px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .hero h1 {
+      line-height: .98;
+      letter-spacing: -3px;
+    }
+
+    .lead {
+      line-height: 1.9;
+      max-width: 520px;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: 13px;
+      flex-wrap: wrap;
+      margin-top: 28px;
+    }
+
+    .btn {
+      transition: transform .25s ease, box-shadow .25s ease;
+      text-decoration: none;
+    }
+
+    .btn:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 10px 30px rgba(255,38,61,.18);
+    }
+
+    .trust-row {
+      display: flex;
+      gap: 22px;
+      flex-wrap: wrap;
+      margin-top: 35px;
+    }
+
+    .glass-card {
+      border: 1px solid rgba(255,255,255,.17);
+      box-shadow: 0 30px 100px rgba(0,0,0,.4);
+    }
+
+    .crystal {
+      text-shadow: 0 0 45px rgba(255,38,61,.45);
+    }
+
+    .ticker {
+      border-top: 1px solid rgba(255,255,255,.09);
+      border-bottom: 1px solid rgba(255,255,255,.09);
+      padding: 20px;
+      text-align: center;
+      color: #ff5265;
+      letter-spacing: 4px;
+      font-size: 12px;
+      font-weight: 800;
+      overflow-wrap: anywhere;
+    }
+
+    .section {
+      padding-top: 100px;
+      padding-bottom: 100px;
+    }
+
+    .section-head {
+      margin-bottom: 45px;
+    }
+
+    .feature-grid {
+      gap: 18px;
+    }
+
+    .feature {
+      transition: transform .25s ease, border-color .25s ease;
+    }
+
+    .feature:hover {
+      transform: translateY(-5px);
+      border-color: rgba(255,38,61,.5);
+    }
+
+    .feature b {
+      color: #ff5265;
+    }
+
+    .categories-section {
+      padding: 75px 0;
+    }
+
+    .category-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
+      margin-top: 35px;
+    }
+
+    .category-card {
+      min-height: 190px;
+      padding: 25px;
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: 14px;
+      background: linear-gradient(145deg,#191919,#0d0d0d);
+      text-decoration: none;
+      color: white;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: .25s ease;
+    }
+
+    .category-card:hover {
+      transform: translateY(-5px);
+      border-color: #ff263d;
+    }
+
+    .category-icon {
+      font-size: 30px;
+    }
+
+    .category-card h3 {
+      margin-bottom: 8px;
+    }
+
+    .category-card p {
+      color: #aaa;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .category-arrow {
+      color: #ff263d;
+      font-size: 20px;
+      align-self: flex-end;
+    }
+
+    .steps-section {
+      padding: 75px 0;
+    }
+
+    .steps-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
+      margin-top: 35px;
+    }
+
+    .step-card {
+      padding: 25px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.1);
+      background: #121212;
+    }
+
+    .step-number {
+      color: #ff263d;
+      font-size: 25px;
+      font-weight: 800;
+      margin-bottom: 20px;
+    }
+
+    .step-card p {
+      color: #aaa;
+      line-height: 1.7;
+      font-size: 13px;
+      margin-top: 10px;
+    }
+
+    .bottom-cta {
+      margin-top: 70px;
+      margin-bottom: 70px;
+      border: 1px solid rgba(255,38,61,.25);
+      border-radius: 18px;
+      background:
+        radial-gradient(ellipse at top right,rgba(255,38,61,.15),transparent 55%),
+        #111;
+    }
+
+    footer {
+      border-top: 1px solid rgba(255,255,255,.1);
+      padding: 30px 5%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 18px;
+    }
+
+    footer a {
+      color: #ff5265;
+      text-decoration: none;
+    }
+
+    .footer-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+
+    .footer-note {
+      width: 100%;
+      color: #777;
+      font-size: 12px;
+      line-height: 1.7;
+    }
+
+    @media(max-width: 750px) {
+      .hero {
+        min-height: auto;
+        padding-top: 65px;
+        padding-bottom: 65px;
+      }
+
+      .hero h1 {
+        font-size: clamp(42px, 11vw, 65px);
+        letter-spacing: -2px;
+      }
+
+      .category-grid,
+      .steps-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .section {
+        padding-top: 65px;
+        padding-bottom: 65px;
+      }
+
+      .ticker {
+        letter-spacing: 2px;
+        line-height: 2;
+      }
+
+      footer {
+        padding: 25px 18px;
+      }
+    }
+
+    @media(prefers-reduced-motion: reduce) {
+      html {
+        scroll-behavior: auto;
+      }
+
+      *, *::before, *::after {
+        transition-duration: .01ms !important;
+      }
+    }
+  </style>
 </head>
+
 <body>
 
 <header class="topbar">
   <a class="brand" href="index.html">
     <span class="brand-mark">B</span>
-    <span>BHADEX <span class="red">PLUGS</span>
-    <small>DIGITAL ACCESS, ELEVATED</small></span>
+    <span>
+      BHADEX <span class="red">PLUGS</span>
+      <small>DIGITAL ACCESS, ELEVATED</small>
+    </span>
   </a>
 
-  <nav>
+  <nav aria-label="Main navigation">
     <a class="active" href="index.html">Home</a>
     <a href="marketplace.html">Marketplace</a>
     <a class="nav-cta" href="marketplace.html">Explore Store ↗</a>
@@ -26,127 +335,235 @@
 
 <main>
 
-<section class="hero">
-  <div class="hero-copy">
-    <p class="eyebrow">✦ YOUR DIGITAL WORLD. ONE DESTINATION.</p>
+  <!-- HERO -->
+  <section class="hero">
 
-    <h1>
-      UPGRADE YOUR<br>
-      <span class="outline">DIGITAL</span> LIFE<span class="red">.</span>
-    </h1>
+    <div class="hero-copy">
+      <p class="eyebrow">✦ YOUR DIGITAL WORLD. ONE DESTINATION.</p>
 
-    <p class="lead">
-      Discover premium digital subscriptions and services
-      in one sleek marketplace. Simple choices, clear
-      pricing and secure checkout.
-    </p>
+      <h1>
+        UPGRADE YOUR<br>
+        <span class="outline">DIGITAL</span> LIFE<span class="red">.</span>
+      </h1>
 
-    <div class="hero-actions">
-      <a class="btn primary" href="marketplace.html">
-        Explore Marketplace ↗
-      </a>
+      <p class="lead">
+        Discover digital subscriptions and services for
+        entertainment, creativity and productivity.
+        Find your next digital upgrade in one convenient marketplace.
+      </p>
 
-      <a class="btn ghost" href="#why">
-        Why Bhadex?
-      </a>
-    </div>
+      <div class="hero-actions">
+        <a class="btn primary" href="marketplace.html">
+          Explore Marketplace ↗
+        </a>
 
-    <div class="trust-row">
-      <span>✦ Curated digital services</span>
-      <span>✦ Paystack checkout</span>
-    </div>
-  </div>
-
-  <div class="hero-art">
-    <div class="glass-card">
-      <div class="glass-top">
-        <span>BHX / 001</span>
-        <span>● LIVE</span>
+        <a class="btn ghost" href="#why">
+          Discover Bhadex
+        </a>
       </div>
 
-      <div class="crystal">B<span>.</span></div>
-
-      <div class="glass-bottom">
-        <span>ACCESS THE EXTRAORDINARY</span>
-        <b>EST. 2026</b>
+      <div class="trust-row">
+        <span>✦ Clear package options</span>
+        <span>✦ Secure payment processing</span>
       </div>
     </div>
-  </div>
-</section>
 
-<section class="ticker">
-  STREAM ✦ CREATE ✦ CONNECT ✦ PRODUCTIVITY ✦
-</section>
+    <div class="hero-art">
+      <div class="glass-card">
+        <div class="glass-top">
+          <span>BHX / 001</span>
+          <span>● BHADEX</span>
+        </div>
 
-<section class="section" id="why">
+        <div class="crystal">B<span>.</span></div>
 
-  <div class="section-head">
-    <div>
-      <p class="eyebrow">THE BHADEX STANDARD</p>
-
-      <h2>
-        BUILT FOR A <span class="red">BETTER</span><br>
-        DIGITAL EXPERIENCE.
-      </h2>
+        <div class="glass-bottom">
+          <span>ACCESS THE EXTRAORDINARY</span>
+          <b>EST. 2026</b>
+        </div>
+      </div>
     </div>
+
+  </section>
+
+  <section class="ticker">
+    STREAM ✦ CREATE ✦ CONNECT ✦ DISCOVER ✦ PRODUCTIVITY
+  </section>
+
+  <!-- CATEGORIES -->
+  <section class="categories-section section">
+
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">EXPLORE THE POSSIBILITIES</p>
+        <h2>YOUR DIGITAL WORLD.<br><span class="red">YOUR CHOICE.</span></h2>
+      </div>
+
+      <p>
+        Discover services across different areas
+        of your digital life.
+      </p>
+    </div>
+
+    <div class="category-grid">
+
+      <a class="category-card" href="marketplace.html">
+        <span class="category-icon">▶</span>
+        <div>
+          <h3>Entertainment</h3>
+          <p>Explore digital entertainment options and subscriptions.</p>
+        </div>
+        <span class="category-arrow">↗</span>
+      </a>
+
+      <a class="category-card" href="marketplace.html">
+        <span class="category-icon">✦</span>
+        <div>
+          <h3>Creativity</h3>
+          <p>Discover tools for creative projects and content.</p>
+        </div>
+        <span class="category-arrow">↗</span>
+      </a>
+
+      <a class="category-card" href="marketplace.html">
+        <span class="category-icon">⌘</span>
+        <div>
+          <h3>Productivity</h3>
+          <p>Explore tools that support your everyday digital work.</p>
+        </div>
+        <span class="category-arrow">↗</span>
+      </a>
+
+    </div>
+  </section>
+
+  <!-- WHY BHADEX -->
+  <section class="section" id="why">
+
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">THE BHADEX STANDARD</p>
+
+        <h2>
+          BUILT FOR A <span class="red">BETTER</span><br>
+          DIGITAL EXPERIENCE.
+        </h2>
+      </div>
+
+      <p>
+        Everything you need, presented with clarity
+        and designed to make choosing effortless.
+      </p>
+    </div>
+
+    <div class="feature-grid">
+
+      <article class="feature">
+        <b>01</b>
+        <h3>Curated Selection</h3>
+        <p>
+          Explore entertainment, creativity and
+          productivity services in one place.
+        </p>
+      </article>
+
+      <article class="feature">
+        <b>02</b>
+        <h3>Clear Package Options</h3>
+        <p>
+          Compare available packages and review
+          pricing before making a choice.
+        </p>
+      </article>
+
+      <article class="feature">
+        <b>03</b>
+        <h3>Payment Processing</h3>
+        <p>
+          Payments are handled through the
+          Paystack checkout integration.
+        </p>
+      </article>
+
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section class="steps-section">
+
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">SIMPLE FROM START TO FINISH</p>
+        <h2>HOW IT <span class="red">WORKS.</span></h2>
+      </div>
+
+      <p>
+        A straightforward way to explore available
+        products and follow your order.
+      </p>
+    </div>
+
+    <div class="steps-grid">
+
+      <article class="step-card">
+        <div class="step-number">01</div>
+        <h3>Explore</h3>
+        <p>Browse the marketplace and choose an available product.</p>
+      </article>
+
+      <article class="step-card">
+        <div class="step-number">02</div>
+        <h3>Review & Checkout</h3>
+        <p>Review the package details and follow the checkout instructions.</p>
+      </article>
+
+      <article class="step-card">
+        <div class="step-number">03</div>
+        <h3>Track Your Order</h3>
+        <p>Use your order reference and purchase email to check order progress.</p>
+      </article>
+
+    </div>
+  </section>
+
+  <!-- CALL TO ACTION -->
+  <section class="bottom-cta">
+
+    <p class="eyebrow">READY WHEN YOU ARE</p>
+
+    <h2>
+      FIND YOUR NEXT<br>
+      <span class="red">DIGITAL UPGRADE.</span>
+    </h2>
 
     <p>
-      Everything you need, presented with clarity
-      and designed to make choosing effortless.
+      Explore the marketplace and discover
+      what's available.
     </p>
-  </div>
 
-  <div class="feature-grid">
+    <a class="btn primary" href="marketplace.html">
+      Shop the Marketplace ↗
+    </a>
 
-    <article class="feature">
-      <b>01</b>
-      <h3>Curated Selection</h3>
-      <p>
-        Explore entertainment, creativity and
-        productivity services.
-      </p>
-    </article>
-
-    <article class="feature">
-      <b>02</b>
-      <h3>Five Package Options</h3>
-      <p>
-        Compare five choices on each product listing.
-      </p>
-    </article>
-
-    <article class="feature">
-      <b>03</b>
-      <h3>Secure Checkout</h3>
-      <p>
-        Checkout is connected to Paystack.
-        Test payments are available while setup is being verified.
-      </p>
-    </article>
-
-  </div>
-</section>
-
-<section class="bottom-cta">
-  <p class="eyebrow">READY WHEN YOU ARE</p>
-
-  <h2>
-    FIND YOUR NEXT<br>
-    <span class="red">DIGITAL UPGRADE.</span>
-  </h2>
-
-  <a class="btn primary" href="marketplace.html">
-    Shop the Marketplace ↗
-  </a>
-</section>
+  </section>
 
 </main>
 
 <footer>
   <span>BHADEX PLUGS © 2026</span>
-  <a href="marketplace.html">Marketplace ↗</a>
+
+  <div class="footer-links">
+    <a href="index.html">Home</a>
+    <a href="marketplace.html">Marketplace</a>
+    <a href="track.html">Track Order</a>
+  </div>
+
+  <p class="footer-note">
+    BHADEX PLUGS is an independent digital services marketplace.
+    Product names and trademarks belong to their respective owners.
+    Availability and service terms may vary.
+  </p>
 </footer>
 
 </body>
-  </html>
-  
+</html>

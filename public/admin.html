@@ -402,6 +402,49 @@
       background: var(--red);
     }
 
+    /* CUSTOMER MANAGEMENT */
+
+    .customer-summary {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 12px;
+      margin: 15px 0;
+    }
+
+    .customer-summary-card {
+      background: #090909;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      padding: 15px;
+    }
+
+    .customer-summary-card p {
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
+
+    .customer-summary-card strong {
+      color: var(--red);
+      font-size: 21px;
+    }
+
+    .customer-table {
+      min-width: 650px;
+    }
+
+    .customer-table button {
+      background: #292929;
+      color: #fff;
+      border: 1px solid var(--border);
+      padding: 8px 11px;
+      font-size: 12px;
+    }
+
+    .customer-table button:hover {
+      background: var(--red);
+    }
+
     @media(max-width: 480px) {
       .details-box {
         padding: 16px;
@@ -528,6 +571,49 @@
           <h3 id="cancelledOrders">0</h3>
         </div>
       </div>
+
+      <!-- CUSTOMER MANAGEMENT -->
+      <section class="panel">
+        <h2>Customer Management</h2>
+
+        <p class="muted">
+          Customer summaries are calculated from the orders currently loaded
+          (up to the latest 200 returned by the server).
+          Spending includes paid orders only.
+        </p>
+
+        <div class="customer-summary">
+          <div class="customer-summary-card">
+            <p>Unique Customers in Results</p>
+            <strong id="customerCount">0</strong>
+          </div>
+
+          <div class="customer-summary-card">
+            <p>Paid Customer Spending</p>
+            <strong id="customerSpending">GH₵0.00</strong>
+          </div>
+        </div>
+
+        <p id="customersMessage" class="message">
+          Customer information will appear after orders load.
+        </p>
+
+        <div class="table-wrap">
+          <table class="customer-table">
+            <thead>
+              <tr>
+                <th>Customer Email</th>
+                <th>Orders</th>
+                <th>Paid Orders</th>
+                <th>Total Spent</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+
+            <tbody id="customersTable"></tbody>
+          </table>
+        </div>
+      </section>
 
       <section class="panel">
         <h2>Customer Orders</h2>
@@ -1012,6 +1098,93 @@
       }
     });
 
+    // CUSTOMER MANAGEMENT
+    function renderCustomers(orders) {
+      const customersTable = document.getElementById("customersTable");
+      const customersMessage = document.getElementById("customersMessage");
+      const customerCount = document.getElementById("customerCount");
+      const customerSpending = document.getElementById("customerSpending");
+
+      customersTable.replaceChildren();
+
+      const customers = new Map();
+
+      (orders || []).forEach((order) => {
+        const email = String(order.customer_email || "").trim();
+        if (!email) return;
+
+        const key = email.toLowerCase();
+
+        if (!customers.has(key)) {
+          customers.set(key, {
+            email,
+            orders: 0,
+            paidOrders: 0,
+            totalSpent: 0
+          });
+        }
+
+        const customer = customers.get(key);
+        customer.orders += 1;
+
+        if (String(order.status || "").toUpperCase() === "PAID") {
+          customer.paidOrders += 1;
+          customer.totalSpent += Number(order.amount || 0);
+        }
+      });
+
+      const customerList = Array.from(customers.values())
+        .sort((a, b) => b.totalSpent - a.totalSpent);
+
+      const allPaidSpending = customerList.reduce(
+        (total, customer) => total + customer.totalSpent,
+        0
+      );
+
+      customerCount.textContent = customerList.length;
+      customerSpending.textContent = money(allPaidSpending);
+
+      if (customerList.length === 0) {
+        customersMessage.textContent =
+          "No customer records in the current order results.";
+        return;
+      }
+
+      customersMessage.textContent =
+        customerList.length + " customer(s) found in the current order results.";
+
+      customerList.forEach((customer) => {
+        const row = document.createElement("tr");
+
+        function addCell(value) {
+          const td = document.createElement("td");
+          td.textContent = String(value);
+          row.appendChild(td);
+        }
+
+        addCell(customer.email);
+        addCell(customer.orders);
+        addCell(customer.paidOrders);
+        addCell(money(customer.totalSpent));
+
+        const actionCell = document.createElement("td");
+        const viewButton = document.createElement("button");
+        viewButton.type = "button";
+        viewButton.textContent = "View Orders";
+
+        viewButton.addEventListener("click", () => {
+          document.getElementById("searchInput").value = customer.email;
+          document.getElementById("statusFilter").value = "";
+          loadOrders();
+          document.getElementById("searchInput").focus();
+        });
+
+        actionCell.appendChild(viewButton);
+        row.appendChild(actionCell);
+        customersTable.appendChild(row);
+      });
+    }
+
     // LOAD CUSTOMER ORDERS
     async function loadOrders() {
       if (loadingOrders) return;
@@ -1057,6 +1230,7 @@
           stats.cancelledOrders || 0;
 
         const orders = data.orders || [];
+        renderCustomers(orders);
 
         if (orders.length === 0) {
           ordersMessage.textContent = "No orders found.";
@@ -1262,7 +1436,7 @@
 
         showLogin();
       }
-    );
+    });
   </script>
 </body>
 </html>

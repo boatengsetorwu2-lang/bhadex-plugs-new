@@ -26,9 +26,23 @@
   <section class="checkout-note">
     <p class="eyebrow">BHADEX PAYMENT CENTRE</p>
     <h2 id="paymentTitle">Checking your payment...</h2>
-    <p id="paymentMessage">Please wait while we confirm your transaction with Paystack.</p>
+    <p id="paymentMessage">
+      Please wait while we confirm your transaction with Paystack.
+    </p>
     <p id="paymentReference"></p>
-    <a class="btn primary" href="marketplace.html">Return to Marketplace</a>
+
+    <button
+      id="retryButton"
+      class="btn primary"
+      type="button"
+      hidden
+    >
+      Check Payment Again
+    </button>
+
+    <a class="btn primary" href="marketplace.html">
+      Return to Marketplace
+    </a>
   </section>
 </main>
 
@@ -42,6 +56,7 @@
   const title = document.getElementById("paymentTitle");
   const message = document.getElementById("paymentMessage");
   const referenceText = document.getElementById("paymentReference");
+  const retryButton = document.getElementById("retryButton");
 
   const params = new URLSearchParams(window.location.search);
   const reference = params.get("reference") || params.get("trxref");
@@ -55,31 +70,57 @@
 
   referenceText.textContent = "Reference: " + reference;
 
-  try {
-    const response = await fetch(
-      "/api/payments/verify/" + encodeURIComponent(reference)
-    );
+  async function verifyPayment() {
+    title.textContent = "Checking your payment...";
+    message.textContent =
+      "Please wait while we confirm your transaction with Paystack.";
 
-    const result = await response.json();
+    retryButton.hidden = true;
+    retryButton.disabled = true;
 
-    if (!response.ok) {
-      throw new Error(result.message || "Verification failed.");
-    }
+    try {
+      const response = await fetch(
+        "/api/payments/verify/" + encodeURIComponent(reference)
+      );
 
-    if (result.verified) {
-      title.textContent = "Payment successful!";
-      message.textContent =
-        "Your payment has been confirmed by Paystack. Thank you for choosing BHADEX PLUGS.";
-    } else {
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          result.error || result.message || "Verification failed."
+        );
+      }
+
+      if (result.success === true && result.status === "success") {
+        title.textContent = "Payment successful!";
+        message.textContent =
+          "Your payment has been confirmed by Paystack. Thank you for choosing BHADEX PLUGS.";
+
+        return;
+      }
+
       title.textContent = "Payment not confirmed";
       message.textContent =
         "Paystack has not confirmed this transaction as successful. Please check your payment status before trying again.";
+
+      retryButton.hidden = false;
+
+    } catch (error) {
+      title.textContent = "Unable to verify payment";
+      message.textContent =
+        error.message ||
+        "We could not check your transaction right now. Please try again later.";
+
+      retryButton.hidden = false;
+
+    } finally {
+      retryButton.disabled = false;
     }
-  } catch (error) {
-    title.textContent = "Unable to verify payment";
-    message.textContent =
-      "We could not check your transaction right now. Please try again later or contact support.";
   }
+
+  retryButton.addEventListener("click", verifyPayment);
+
+  await verifyPayment();
 })();
 </script>
 

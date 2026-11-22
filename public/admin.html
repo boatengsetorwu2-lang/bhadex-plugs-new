@@ -4,7 +4,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#080808">
   <title>BHADEX PLUGS | Admin Dashboard</title>
+
   <style>
     :root {
       --red: #ff263d;
@@ -38,7 +40,7 @@
       justify-content: space-between;
       align-items: center;
       gap: 15px;
-      margin-bottom: 30px;
+      margin-bottom: 25px;
       flex-wrap: wrap;
     }
 
@@ -67,6 +69,11 @@
       border-radius: 7px;
       padding: 11px 15px;
       font-weight: bold;
+    }
+
+    button:disabled {
+      opacity: .6;
+      cursor: not-allowed;
     }
 
     .primary {
@@ -225,7 +232,75 @@
     }
 
     .hidden {
-      display: none;
+      display: none !important;
+    }
+
+    /* NEW ORDER NOTIFICATIONS */
+
+    .notification-panel {
+      border: 1px solid rgba(255,38,61,.35);
+      background: linear-gradient(135deg, #191010, #141414);
+    }
+
+    .notification-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 15px;
+    }
+
+    .notification-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: bold;
+    }
+
+    .notification-badge {
+      background: var(--red);
+      color: white;
+      border-radius: 20px;
+      padding: 5px 10px;
+      font-size: 12px;
+      min-width: 25px;
+      text-align: center;
+    }
+
+    .notification-item {
+      background: #090909;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 13px;
+      margin-top: 9px;
+      font-size: 13px;
+      overflow-wrap: anywhere;
+    }
+
+    .notification-item strong {
+      color: #ff6475;
+    }
+
+    .notification-controls {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .notification-controls button {
+      font-size: 12px;
+      padding: 9px 12px;
+    }
+
+    .notification-empty {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .live-indicator {
+      color: #64e89a;
+      font-size: 12px;
     }
 
     @media(max-width: 650px) {
@@ -270,10 +345,43 @@
         <div>
           <h1>BHADEX <span>PLUGS</span></h1>
           <p class="muted">Order management and delivery tracking</p>
+          <p class="live-indicator" id="liveStatus">
+            ● Automatic checking is active
+          </p>
         </div>
 
         <button class="logout" id="logoutBtn">Logout</button>
       </header>
+
+      <!-- NEW ORDER NOTIFICATIONS -->
+      <section class="panel notification-panel">
+        <div class="notification-header">
+          <div class="notification-title">
+            <span>New Order Notifications</span>
+            <span class="notification-badge" id="notificationCount">0</span>
+          </div>
+
+          <div class="notification-controls">
+            <button class="secondary" id="soundBtn">
+              Sound: OFF
+            </button>
+
+            <button class="secondary" id="clearNotificationsBtn">
+              Clear Alerts
+            </button>
+          </div>
+        </div>
+
+        <p class="muted">
+          New paid orders are checked automatically every 15 seconds.
+        </p>
+
+        <div id="notificationList" aria-live="polite">
+          <p class="notification-empty">
+            No new orders detected yet.
+          </p>
+        </div>
+      </section>
 
       <div class="stats">
         <div class="stat">
@@ -367,6 +475,14 @@
     const ordersTable = document.getElementById("ordersTable");
 
     let loadingOrders = false;
+    let checkingNotifications = false;
+    let pollingTimer = null;
+
+    // Notification state
+    let knownPaidOrderRefs = null;
+    let notificationItems = [];
+    let notificationCount = 0;
+    let soundEnabled = false;
 
     function showDashboard() {
       loginSection.classList.add("hidden");
@@ -377,6 +493,7 @@
       dashboard.classList.add("hidden");
       loginSection.classList.remove("hidden");
       loginMessage.textContent = message;
+      stopOrderPolling();
     }
 
     function money(value) {
@@ -423,6 +540,169 @@
       return data;
     }
 
+    // SOUND ALERT
+    function playNotificationSound() {
+      if (!soundEnabled) return;
+
+      try {
+        const AudioContextClass =
+          window.AudioContext || window.webkitAudioContext;
+
+        if (!AudioContextClass) return;
+
+        const audio = new AudioContextClass();
+        const oscillator = audio.createOscillator();
+        const gain = audio.createGain();
+
+        oscillator.connect(gain);
+        gain.connect(audio.destination);
+
+        oscillator.type = "sine";
+        oscillator.frequency.value = 880;
+
+        gain.gain.setValueAtTime(0.15, audio.currentTime);
+        gain.gain.exponentialRampToValueAtTime(
+          0.001,
+          audio.currentTime + 0.35
+        );
+
+        oscillator.start();
+        oscillator.stop(audio.currentTime + 0.35);
+
+        oscillator.onended = () => audio.close();
+
+      } catch (error) {
+        console.log("Sound alert unavailable.");
+      }
+    }
+
+    // DISPLAY NOTIFICATIONS
+    function renderNotifications() {
+      const list = document.getElementById("notificationList");
+      const count = document.getElementById("notificationCount");
+
+      count.textContent = notificationCount;
+      list.replaceChildren();
+
+      if (notificationItems.length === 0) {
+        const empty = document.createElement("p");
+        empty.className = "notification-empty";
+        empty.textContent = "No new orders detected yet.";
+        list.appendChild(empty);
+        return;
+      }
+
+      notificationItems.forEach((item) => {
+        const box = document.createElement("div");
+        box.className = "notification-item";
+
+        const title = document.createElement("strong");
+        title.textContent = "New paid order received";
+
+        const reference = document.createElement("p");
+        reference.textContent = "Reference: " + item.reference;
+
+        const product = document.createElement("p");
+        product.textContent = "Product: " + (item.product || "-");
+
+        const amount = document.createElement("p");
+        amount.textContent = "Amount: " + money(item.amount);
+
+        box.appendChild(title);
+        box.appendChild(reference);
+        box.appendChild(product);
+        box.appendChild(amount);
+
+        list.appendChild(box);
+      });
+    }
+
+    // CHECK FOR NEW PAID ORDERS
+    async function checkForNewOrders() {
+      if (checkingNotifications) return;
+
+      checkingNotifications = true;
+
+      try {
+        // Request all orders, without the dashboard filters.
+        const data = await request("/api/admin/orders");
+
+        const orders = data.orders || [];
+
+        const paidOrders = orders.filter(
+          order => String(order.status).toUpperCase() === "PAID"
+        );
+
+        // First check establishes a baseline.
+        // Existing orders will not trigger false alerts.
+        if (knownPaidOrderRefs === null) {
+          knownPaidOrderRefs = new Set(
+            paidOrders.map(order => order.reference)
+          );
+
+          return;
+        }
+
+        const newOrders = paidOrders.filter(
+          order => !knownPaidOrderRefs.has(order.reference)
+        );
+
+        // Remember all references, including newly detected ones.
+        paidOrders.forEach(order => {
+          knownPaidOrderRefs.add(order.reference);
+        });
+
+        if (newOrders.length > 0) {
+          newOrders.forEach(order => {
+            notificationItems.unshift({
+              reference: order.reference,
+              product: order.product,
+              amount: order.amount
+            });
+          });
+
+          notificationCount += newOrders.length;
+
+          // Keep the notification list manageable.
+          notificationItems = notificationItems.slice(0, 10);
+
+          renderNotifications();
+          playNotificationSound();
+        }
+
+        document.getElementById("liveStatus").textContent =
+          "● Last checked: " + new Date().toLocaleTimeString();
+
+      } catch (error) {
+        if (error.message !== "Session expired") {
+          document.getElementById("liveStatus").textContent =
+            "● Automatic check temporarily unavailable";
+        }
+      } finally {
+        checkingNotifications = false;
+      }
+    }
+
+    function startOrderPolling() {
+      stopOrderPolling();
+
+      // Check once immediately, then every 15 seconds.
+      checkForNewOrders();
+
+      pollingTimer = setInterval(
+        checkForNewOrders,
+        15000
+      );
+    }
+
+    function stopOrderPolling() {
+      if (pollingTimer) {
+        clearInterval(pollingTimer);
+        pollingTimer = null;
+      }
+    }
+
+    // LOGIN
     loginForm.addEventListener("submit", async (event) => {
       event.preventDefault();
 
@@ -440,14 +720,24 @@
         });
 
         document.getElementById("password").value = "";
+
+        // Reset notification state for this login session.
+        knownPaidOrderRefs = null;
+        notificationItems = [];
+        notificationCount = 0;
+        renderNotifications();
+
         showDashboard();
+
         await loadOrders();
+        startOrderPolling();
 
       } catch (error) {
         loginMessage.textContent = error.message;
       }
     });
 
+    // LOAD CUSTOMER ORDERS
     async function loadOrders() {
       if (loadingOrders) return;
 
@@ -603,11 +893,16 @@
       }
     }
 
+    // MANUAL REFRESH
     document.getElementById("refreshBtn").addEventListener(
       "click",
-      loadOrders
+      async () => {
+        await loadOrders();
+        await checkForNewOrders();
+      }
     );
 
+    // FILTERS
     document.getElementById("statusFilter").addEventListener(
       "change",
       loadOrders
@@ -623,16 +918,52 @@
       }
     );
 
+    // SOUND BUTTON
+    document.getElementById("soundBtn").addEventListener(
+      "click",
+      () => {
+        soundEnabled = !soundEnabled;
+
+        const button = document.getElementById("soundBtn");
+
+        button.textContent = soundEnabled
+          ? "Sound: ON"
+          : "Sound: OFF";
+
+        if (soundEnabled) {
+          playNotificationSound();
+        }
+      }
+    );
+
+    // CLEAR ALERTS
+    document.getElementById("clearNotificationsBtn").addEventListener(
+      "click",
+      () => {
+        notificationItems = [];
+        notificationCount = 0;
+        renderNotifications();
+      }
+    );
+
+    // LOGOUT
     document.getElementById("logoutBtn").addEventListener(
       "click",
       async () => {
+        stopOrderPolling();
+
         try {
           await request("/api/admin/logout", {
             method: "POST"
           });
         } catch (error) {
-          // Return to login even if the session has already expired.
+          // Return to login even if the session has expired.
         }
+
+        knownPaidOrderRefs = null;
+        notificationItems = [];
+        notificationCount = 0;
+        renderNotifications();
 
         showLogin();
       }

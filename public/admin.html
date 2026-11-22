@@ -167,7 +167,7 @@
     table {
       border-collapse: collapse;
       width: 100%;
-      min-width: 1050px;
+      min-width: 1150px;
     }
 
     th, td {
@@ -233,6 +233,39 @@
 
     .hidden {
       display: none !important;
+    }
+
+    /* COPY BUTTONS */
+
+    .copy-cell {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 160px;
+    }
+
+    .copy-value {
+      overflow-wrap: anywhere;
+      max-width: 230px;
+    }
+
+    .copy-btn {
+      flex-shrink: 0;
+      background: #292929;
+      color: #fff;
+      border: 1px solid var(--border);
+      padding: 6px 9px;
+      font-size: 10px;
+      border-radius: 5px;
+    }
+
+    .copy-btn:hover {
+      background: var(--red);
+    }
+
+    .copy-btn.copied {
+      background: #176b3a;
+      color: white;
     }
 
     /* NEW ORDER NOTIFICATIONS */
@@ -353,7 +386,6 @@
         <button class="logout" id="logoutBtn">Logout</button>
       </header>
 
-      <!-- NEW ORDER NOTIFICATIONS -->
       <section class="panel notification-panel">
         <div class="notification-header">
           <div class="notification-title">
@@ -478,7 +510,6 @@
     let checkingNotifications = false;
     let pollingTimer = null;
 
-    // Notification state
     let knownPaidOrderRefs = null;
     let notificationItems = [];
     let notificationCount = 0;
@@ -515,6 +546,78 @@
       span.className = "status " + String(text || "").toLowerCase();
       span.textContent = text || "UNKNOWN";
       return span;
+    }
+
+    // COPY TEXT TO CLIPBOARD
+    async function copyText(value, button) {
+      const text = String(value || "");
+
+      if (!text || text === "-") return;
+
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(text);
+        } else {
+          const textarea = document.createElement("textarea");
+          textarea.value = text;
+          textarea.style.position = "fixed";
+          textarea.style.opacity = "0";
+
+          document.body.appendChild(textarea);
+          textarea.select();
+
+          const copied = document.execCommand("copy");
+          textarea.remove();
+
+          if (!copied) {
+            throw new Error("Copy failed");
+          }
+        }
+
+        const originalText = button.textContent;
+
+        button.textContent = "Copied!";
+        button.classList.add("copied");
+
+        setTimeout(() => {
+          button.textContent = originalText;
+          button.classList.remove("copied");
+        }, 1500);
+
+      } catch (error) {
+        button.textContent = "Failed";
+        setTimeout(() => {
+          button.textContent = "Copy";
+        }, 1500);
+      }
+    }
+
+    // CREATE A TABLE CELL WITH COPY BUTTON
+    function cellWithCopy(value) {
+      const td = document.createElement("td");
+
+      const wrapper = document.createElement("div");
+      wrapper.className = "copy-cell";
+
+      const span = document.createElement("span");
+      span.className = "copy-value";
+      span.textContent = value == null || value === "" ? "-" : String(value);
+
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "copy-btn";
+      button.textContent = "Copy";
+      button.title = "Copy " + String(value || "");
+
+      button.addEventListener("click", () => {
+        copyText(value, button);
+      });
+
+      wrapper.appendChild(span);
+      wrapper.appendChild(button);
+      td.appendChild(wrapper);
+
+      return td;
     }
 
     async function request(url, options = {}) {
@@ -608,10 +711,20 @@
         const amount = document.createElement("p");
         amount.textContent = "Amount: " + money(item.amount);
 
+        const copyButton = document.createElement("button");
+        copyButton.type = "button";
+        copyButton.className = "copy-btn";
+        copyButton.textContent = "Copy Reference";
+
+        copyButton.addEventListener("click", () => {
+          copyText(item.reference, copyButton);
+        });
+
         box.appendChild(title);
         box.appendChild(reference);
         box.appendChild(product);
         box.appendChild(amount);
+        box.appendChild(copyButton);
 
         list.appendChild(box);
       });
@@ -624,17 +737,13 @@
       checkingNotifications = true;
 
       try {
-        // Request all orders, without the dashboard filters.
         const data = await request("/api/admin/orders");
-
         const orders = data.orders || [];
 
         const paidOrders = orders.filter(
           order => String(order.status).toUpperCase() === "PAID"
         );
 
-        // First check establishes a baseline.
-        // Existing orders will not trigger false alerts.
         if (knownPaidOrderRefs === null) {
           knownPaidOrderRefs = new Set(
             paidOrders.map(order => order.reference)
@@ -647,7 +756,6 @@
           order => !knownPaidOrderRefs.has(order.reference)
         );
 
-        // Remember all references, including newly detected ones.
         paidOrders.forEach(order => {
           knownPaidOrderRefs.add(order.reference);
         });
@@ -662,8 +770,6 @@
           });
 
           notificationCount += newOrders.length;
-
-          // Keep the notification list manageable.
           notificationItems = notificationItems.slice(0, 10);
 
           renderNotifications();
@@ -686,7 +792,6 @@
     function startOrderPolling() {
       stopOrderPolling();
 
-      // Check once immediately, then every 15 seconds.
       checkForNewOrders();
 
       pollingTimer = setInterval(
@@ -721,7 +826,6 @@
 
         document.getElementById("password").value = "";
 
-        // Reset notification state for this login session.
         knownPaidOrderRefs = null;
         notificationItems = [];
         notificationCount = 0;
@@ -800,9 +904,15 @@
             return td;
           }
 
-          cell(order.reference);
-          cell(order.customer_email);
-          cell(order.product);
+          // Reference with copy button
+          row.appendChild(cellWithCopy(order.reference));
+
+          // Customer email with copy button
+          row.appendChild(cellWithCopy(order.customer_email));
+
+          // Product with copy button
+          row.appendChild(cellWithCopy(order.product));
+
           cell(order.package);
           cell(money(order.amount));
 

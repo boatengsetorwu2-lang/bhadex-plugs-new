@@ -1,0 +1,114 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#080808">
+  <title>Login | BHADEX PLUGS</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .auth-container {
+      width: min(430px, 92%);
+      margin: 65px auto;
+      padding: 30px;
+      background: #111;
+      border: 1px solid #292929;
+      border-radius: 14px;
+    }
+    .auth-container p { color: #aaa; margin-bottom: 24px; }
+    .auth-container label { display: block; margin: 16px 0 7px; }
+    .auth-container input {
+      width: 100%;
+      padding: 13px;
+      color: white;
+      background: #080808;
+      border: 1px solid #333;
+      border-radius: 7px;
+      box-sizing: border-box;
+    }
+    .auth-container button {
+      width: 100%;
+      margin-top: 22px;
+      padding: 14px;
+      color: white;
+      background: #d71920;
+      border: 0;
+      border-radius: 7px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    #message { margin-top: 16px; font-size: 14px; }
+    .auth-footer { margin-top: 20px; text-align: center; }
+    .auth-footer a { color: #e53935; }
+  </style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="brand" href="index.html">BHADEX PLUGS</a>
+</header>
+
+<main class="auth-container">
+  <h1>Welcome Back</h1>
+  <p>Login to manage your BHADEX PLUGS account.</p>
+
+  <form id="loginForm">
+    <label for="email">Email Address</label>
+    <input id="email" type="email" placeholder="Enter your email" required>
+
+    <label for="password">Password</label>
+    <input id="password" type="password" placeholder="Enter your password" required>
+
+    <button type="submit" id="loginButton">Login</button>
+  </form>
+
+  <div id="message" role="status"></div>
+
+  <div class="auth-footer">
+    Don't have an account? <a href="register.html">Create one</a>
+  </div>
+</main>
+
+<script>
+const form = document.getElementById("loginForm");
+const message = document.getElementById("message");
+const button = document.getElementById("loginButton");
+
+form.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  button.disabled = true;
+  button.textContent = "Logging in...";
+  message.textContent = "";
+
+  try {
+    const response = await fetch("/api/customer/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({
+        email: document.getElementById("email").value.trim(),
+        password: document.getElementById("password").value
+      })
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.error || "Login failed.");
+    }
+
+    window.location.href = "account.html";
+  } catch (error) {
+    message.style.color = "#ff5555";
+    message.textContent = error.message;
+  } finally {
+    button.disabled = false;
+    button.textContent = "Login";
+  }
+});
+</script>
+
+</body>
+</html>

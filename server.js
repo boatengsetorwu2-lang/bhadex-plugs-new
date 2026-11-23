@@ -5,6 +5,7 @@ const express = require("express");
 const axios = require("axios");
 const path = require("path");
 const crypto = require("crypto");
+const { promisify } = require("util");
 const session = require("express-session");
 const PgSession = require("connect-pg-simple")(session);
 const helmet = require("helmet");
@@ -16,6 +17,8 @@ const app = express();
 const PORT = process.env.PORT || 10000;
 
 app.set("trust proxy", 1);
+
+const scryptAsync = promisify(crypto.scrypt);
 
 // PRODUCT PRICES
 const PRODUCT_PRICES = {
@@ -55,7 +58,7 @@ function getExpectedAmount(product, packageName) {
   return prices[index] * 100;
 }
 
-// ESCAPE EMAIL CONTENT
+// ESCAPE HTML
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, character => ({
     "&": "&amp;",
@@ -64,6 +67,44 @@ function escapeHtml(value) {
     '"': "&quot;",
     "'": "&#39;"
   })[character]);
+}
+
+// EMAIL VALIDATION
+function validEmail(email) {
+  return (
+    typeof email === "string" &&
+    email.length <= 255 &&
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+  );
+}
+
+// PASSWORD HASHING
+async function hashCustomerPassword(password) {
+  const salt = crypto.randomBytes(16).toString("hex");
+  const hash = await scryptAsync(password, salt, 64);
+
+  return `${salt}:${hash.toString("hex")}`;
+}
+
+async function verifyCustomerPassword(password, storedHash) {
+  try {
+    const parts = storedHash.split(":");
+
+    if (parts.length !== 2) return false;
+
+    const [salt, key] = parts;
+
+    if (!salt || !/^[a-f0-9]{128}$/i.test(key)) {
+      return false;
+    }
+
+    const derivedKey = await scryptAsync(password, salt, 64);
+    const storedKey = Buffer.from(key, "hex");
+
+    return crypto.timingSafeEqual(derivedKey, storedKey);
+  } catch {
+    return false;
+  }
 }
 
 // AUTOMATIC ORDER CONFIRMATION EMAIL
@@ -213,6 +254,20 @@ const paymentLimiter = rateLimit({
   legacyHeaders: false
 });
 
+const customerRegisterLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+const customerLoginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
 // PAYSTACK WEBHOOK
 app.post(
   "/api/payments/webhook",
@@ -323,7 +378,7 @@ if (!process.env.BASE_URL) {
   throw new Error("BASE_URL must be configured.");
 }
 
-// ADMIN SESSIONS
+// SESSIONS
 app.use(
   session({
     store: new PgSession({
@@ -361,6 +416,282 @@ function requireAdmin(req, res, next) {
 
   next();
 }
+
+// CUSTOMER PROTECTION
+function requireCustomer(req, res, next) {
+  if (!req.session || !req.session.customerId) {
+    return res.status(401).json({
+      error: "Please log in to your customer account."
+    });
+  }
+
+  next();
+}
+
+// CUSTOMER REGISTRATION
+app.post(
+  "/api/customer/register",
+  customerRegisterLimiter,
+  async (req, res) => {
+    try {
+      const name = String(req.body?.name || "").trim();
+      const email = String(req.body?.email || "").trim().toLowerCase();
+      const password = req.body?.password;
+
+      if (
+        name.length < 2 ||
+        name.length > 100 ||
+        !validEmail(email) ||
+        typeof password !== "string" ||
+        password.length < 10 ||
+        password.length > 128
+      ) {
+        return res.status(400).json({
+          error: "Enter a valid name, email and password of at least 10 characters."
+        });
+      }
+
+      const passwordHash = await hashCustomerPassword(password);
+
+      const result = await pool.query(
+        `INSERT INTO customers (name, email, password_hash)
+         VALUES ($1, $2, $3)
+         ON CONFLICT DO NOTHING
+         RETURNING id, name, email, created_at`,
+        [name, email, passwordHash]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(409).json({
+          error: "An account with this email may already exist. Try logging in."
+        });
+      }
+
+      const customer = result.rows[0];
+
+      req.session.regenerate(error => {
+        if (error) {
+          console.error("Customer session error:", error.message);
+          return res.status(500).json({
+            error: "Unable to create your account session."
+          });
+        }
+
+        req.session.customerId = customer.id;
+
+        req.session.save(saveError => {
+          if (saveError) {
+            return res.status(500).json({
+              error: "Unable to save your account session."
+            });
+          }
+
+          return res.status(201).json({
+            success: true,
+            message: "Your account has been created.",
+            customer: {
+              id: customer.id,
+              name: customer.name,
+              email: customer.email
+            }
+          });
+        });
+      });
+
+    } catch (error) {
+      console.error("Customer registration error:", error.message);
+
+      return res.status(500).json({
+        error: "Unable to create your account."
+      });
+    }
+  }
+);
+
+// CUSTOMER LOGIN
+app.post(
+  "/api/customer/login",
+  customerLoginLimiter,
+  async (req, res) => {
+    try {
+      const email = String(req.body?.email || "").trim().toLowerCase();
+      const password = req.body?.password;
+
+      if (
+        !validEmail(email) ||
+        typeof password !== "string" ||
+        password.length > 128
+      ) {
+        return res.status(400).json({
+          error: "Enter your email and password."
+        });
+      }
+
+      const result = await pool.query(
+        `SELECT id, name, email, password_hash
+         FROM customers
+         WHERE LOWER(email) = $1
+         LIMIT 1`,
+        [email]
+      );
+
+      if (
+        result.rows.length === 0 ||
+        !(await verifyCustomerPassword(
+          password,
+          result.rows[0].password_hash
+        ))
+      ) {
+        return res.status(401).json({
+          error: "Incorrect email or password."
+        });
+      }
+
+      const customer = result.rows[0];
+
+      req.session.regenerate(error => {
+        if (error) {
+          console.error("Customer login session error:", error.message);
+          return res.status(500).json({
+            error: "Unable to create your login session."
+          });
+        }
+
+        req.session.customerId = customer.id;
+
+        req.session.save(saveError => {
+          if (saveError) {
+            return res.status(500).json({
+              error: "Unable to save your login session."
+            });
+          }
+
+          return res.json({
+            success: true,
+            message: "Login successful.",
+            customer: {
+              id: customer.id,
+              name: customer.name,
+              email: customer.email
+            }
+          });
+        });
+      });
+
+    } catch (error) {
+      console.error("Customer login error:", error.message);
+
+      return res.status(500).json({
+        error: "Unable to log in right now."
+      });
+    }
+  }
+);
+
+// GET CUSTOMER ACCOUNT DETAILS
+app.get("/api/customer/me", requireCustomer, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, name, email, created_at
+       FROM customers
+       WHERE id = $1
+       LIMIT 1`,
+      [req.session.customerId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: "Customer account not found."
+      });
+    }
+
+    const customer = result.rows[0];
+
+    return res.json({
+      customer: {
+        id: customer.id,
+        name: customer.name,
+        email: customer.email,
+        createdAt: customer.created_at
+      }
+    });
+
+  } catch (error) {
+    console.error("Customer account error:", error.message);
+
+    return res.status(500).json({
+      error: "Unable to load your account."
+    });
+  }
+});
+
+// CUSTOMER'S OWN ORDERS
+app.get("/api/customer/orders", requireCustomer, async (req, res) => {
+  try {
+    const customerResult = await pool.query(
+      `SELECT email
+       FROM customers
+       WHERE id = $1
+       LIMIT 1`,
+      [req.session.customerId]
+    );
+
+    if (customerResult.rows.length === 0) {
+      return res.status(404).json({
+        error: "Customer account not found."
+      });
+    }
+
+    const email = customerResult.rows[0].email.toLowerCase();
+
+    const result = await pool.query(
+      `SELECT
+        reference,
+        product,
+        package,
+        amount,
+        currency,
+        status,
+        fulfillment_status,
+        created_at,
+        delivered_at
+       FROM orders
+       WHERE LOWER(customer_email) = $1
+       ORDER BY created_at DESC
+       LIMIT 100`,
+      [email]
+    );
+
+    return res.json({
+      orders: result.rows
+    });
+
+  } catch (error) {
+    console.error("Customer orders error:", error.message);
+
+    return res.status(500).json({
+      error: "Unable to load your orders."
+    });
+  }
+});
+
+// CUSTOMER LOGOUT
+app.post("/api/customer/logout", requireCustomer, (req, res) => {
+  req.session.destroy(error => {
+    if (error) {
+      return res.status(500).json({
+        error: "Unable to log out."
+      });
+    }
+
+    res.clearCookie("connect.sid");
+
+    return res.json({
+      success: true,
+      message: "You have logged out."
+    });
+  });
+});
 
 // ADMIN LOGIN
 app.post("/api/admin/login", loginLimiter, async (req, res) => {
@@ -431,9 +762,7 @@ app.post("/api/orders/track", trackingLimiter, async (req, res) => {
     if (
       !reference ||
       reference.length > 100 ||
-      !email ||
-      email.length > 255 ||
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+      !validEmail(email)
     ) {
       return res.status(400).json({
         error: "Enter a valid order reference and email address."
@@ -618,8 +947,7 @@ app.post(
       const { email, product, packageIndex } = req.body || {};
 
       if (
-        typeof email !== "string" ||
-        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) ||
+        !validEmail(typeof email === "string" ? email.trim() : "") ||
         typeof product !== "string" ||
         !Object.prototype.hasOwnProperty.call(PRODUCT_PRICES, product) ||
         !Number.isInteger(packageIndex) ||
@@ -639,7 +967,7 @@ app.post(
       const response = await axios.post(
         "https://api.paystack.co/transaction/initialize",
         {
-          email: email.trim(),
+          email: email.trim().toLowerCase(),
           amount: amount * 100,
           currency: "GHS",
           callback_url: `${baseUrl}/payment.html`,

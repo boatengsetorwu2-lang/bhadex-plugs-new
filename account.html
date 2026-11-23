@@ -1,0 +1,190 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#080808">
+  <title>My Account | BHADEX PLUGS</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .account-container {
+      width: min(900px, 92%);
+      margin: 45px auto;
+    }
+    .account-card {
+      background: #111;
+      border: 1px solid #292929;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 22px;
+    }
+    .account-card h2 { margin-top: 0; }
+    .muted { color: #aaa; }
+    .order {
+      border-top: 1px solid #333;
+      padding: 17px 0;
+    }
+    .order:first-of-type { border-top: 0; }
+    .order strong { color: white; }
+    .status { color: #4ade80; }
+    .logout-button {
+      background: #d71920;
+      color: white;
+      border: 0;
+      padding: 11px 20px;
+      border-radius: 7px;
+      cursor: pointer;
+    }
+    #message { color: #ff7777; }
+  </style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="brand" href="index.html">BHADEX PLUGS</a>
+</header>
+
+<main class="account-container">
+  <h1>My Account</h1>
+  <p class="muted">Manage your profile and view your orders.</p>
+
+  <section class="account-card">
+    <h2>Profile Information</h2>
+    <p><strong>Name:</strong> <span id="customerName">Loading...</span></p>
+    <p><strong>Email:</strong> <span id="customerEmail">Loading...</span></p>
+    <button class="logout-button" id="logoutButton">Logout</button>
+  </section>
+
+  <section class="account-card">
+    <h2>My Orders</h2>
+    <div id="orders">
+      <p class="muted">Loading your orders...</p>
+    </div>
+  </section>
+
+  <p id="message" role="status"></p>
+</main>
+
+<script>
+const customerName = document.getElementById("customerName");
+const customerEmail = document.getElementById("customerEmail");
+const ordersContainer = document.getElementById("orders");
+const message = document.getElementById("message");
+
+async function loadAccount() {
+  try {
+    const response = await fetch("/api/customer/me", {
+      credentials: "same-origin"
+    });
+
+    if (response.status === 401) {
+      window.location.href = "login.html";
+      return;
+    }
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.error || "Could not load account.");
+    }
+
+    customerName.textContent = result.customer.name;
+    customerEmail.textContent = result.customer.email;
+
+    await loadOrders();
+
+  } catch (error) {
+    message.textContent = error.message;
+  }
+}
+
+async function loadOrders() {
+  try {
+    const response = await fetch("/api/customer/orders", {
+      credentials: "same-origin"
+    });
+
+    if (response.status === 401) {
+      window.location.href = "login.html";
+      return;
+    }
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.error || "Could not load orders.");
+    }
+
+    const orders = result.orders || [];
+
+    if (orders.length === 0) {
+      ordersContainer.innerHTML =
+        '<p class="muted">You have no orders yet.</p>';
+      return;
+    }
+
+    ordersContainer.innerHTML = "";
+
+    orders.forEach(order => {
+      const item = document.createElement("div");
+      item.className = "order";
+
+      const product = document.createElement("p");
+      const productLabel = document.createElement("strong");
+      productLabel.textContent = "Product: ";
+      product.append(productLabel, document.createTextNode(order.product || ""));
+
+      const packageLine = document.createElement("p");
+      packageLine.textContent = "Package: " + (order.package || "");
+
+      const amountLine = document.createElement("p");
+      amountLine.textContent = "Amount: GHS " + Number(order.amount).toFixed(2);
+
+      const paymentLine = document.createElement("p");
+      paymentLine.textContent = "Payment: " + (order.status || "Unknown");
+
+      const deliveryLine = document.createElement("p");
+      deliveryLine.textContent =
+        "Delivery: " + (order.fulfillment_status || "Pending");
+      deliveryLine.className = "status";
+
+      const referenceLine = document.createElement("p");
+      referenceLine.className = "muted";
+      referenceLine.textContent = "Reference: " + (order.reference || "");
+
+      item.append(
+        product, packageLine, amountLine,
+        paymentLine, deliveryLine, referenceLine
+      );
+
+      ordersContainer.appendChild(item);
+    });
+
+  } catch (error) {
+    ordersContainer.textContent = error.message;
+  }
+}
+
+document.getElementById("logoutButton").addEventListener("click", async () => {
+  try {
+    const response = await fetch("/api/customer/logout", {
+      method: "POST",
+      credentials: "same-origin"
+    });
+
+    if (!response.ok) {
+      throw new Error("Logout failed. Please try again.");
+    }
+
+    window.location.href = "login.html";
+  } catch (error) {
+    message.textContent = error.message;
+  }
+});
+
+loadAccount();
+</script>
+
+</body>
+</html>

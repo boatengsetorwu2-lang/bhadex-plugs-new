@@ -145,7 +145,7 @@ const searchInput = document.getElementById("search");
 
 let activeCategory = "All";
 
-// Logo styling
+// LOGO STYLING
 const logoStyles = document.createElement("style");
 
 logoStyles.textContent = `
@@ -188,6 +188,7 @@ logoStyles.textContent = `
 
 document.head.appendChild(logoStyles);
 
+// ESCAPE HTML
 function escapeHTML(value) {
   return String(value).replace(/[&<>"']/g, character => {
     const entities = {
@@ -202,6 +203,139 @@ function escapeHTML(value) {
   });
 }
 
+// CREATE PRODUCT DETAILS MODAL
+function createProductModal() {
+  if (document.getElementById("productModal")) return;
+
+  document.body.insertAdjacentHTML("beforeend", `
+    <div
+      id="productModal"
+      class="product-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modalProductName"
+    >
+      <div class="product-modal-content">
+
+        <button
+          type="button"
+          class="modal-close"
+          id="closeProductModal"
+          aria-label="Close product details"
+        >&times;</button>
+
+        <div id="modalProductContent"></div>
+
+      </div>
+    </div>
+  `);
+
+  document.getElementById("closeProductModal")
+    .addEventListener("click", closeProductModal);
+
+  document.getElementById("productModal")
+    .addEventListener("click", event => {
+      if (event.target.id === "productModal") {
+        closeProductModal();
+      }
+    });
+}
+
+// OPEN PRODUCT DETAILS
+function openProductModal(product) {
+  createProductModal();
+
+  const content = document.getElementById("modalProductContent");
+
+  const benefits = product.benefits.map(benefit => `
+    <li>${escapeHTML(benefit)}</li>
+  `).join("");
+
+  const packages = product.prices.map((price, index) => `
+    <option value="${index}">
+      ${packageNames[index]} - GH₵${price}
+    </option>
+  `).join("");
+
+  content.innerHTML = `
+    <div class="modal-product-logo">
+      <img
+        src="${escapeHTML(product.logo)}"
+        alt="${escapeHTML(product.name)} logo"
+      >
+    </div>
+
+    <span class="product-category">
+      ${escapeHTML(product.category)}
+    </span>
+
+    <h2 id="modalProductName">
+      ${escapeHTML(product.name)}
+    </h2>
+
+    <p class="modal-description">
+      ${escapeHTML(product.description)}
+    </p>
+
+    <h4>What's included</h4>
+
+    <ul class="modal-benefits">
+      ${benefits}
+    </ul>
+
+    <div class="modal-package-area">
+      <label for="modalPackage">Choose subscription duration</label>
+
+      <select id="modalPackage" class="package-select">
+        ${packages}
+      </select>
+    </div>
+
+    <button
+      type="button"
+      id="modalCheckout"
+      class="buy-btn"
+    >
+      Continue to Checkout
+    </button>
+
+    <p class="product-note">
+      Features depend on the official plan and account eligibility.
+    </p>
+  `;
+
+  document.getElementById("modalCheckout")
+    .addEventListener("click", () => {
+      const packageIndex = Number(
+        document.getElementById("modalPackage").value
+      );
+
+      closeProductModal();
+      startCheckout(product.name, packageIndex);
+    });
+
+  document.getElementById("productModal").classList.add("active");
+  document.body.classList.add("modal-open");
+}
+
+// CLOSE PRODUCT DETAILS
+function closeProductModal() {
+  const modal = document.getElementById("productModal");
+
+  if (modal) {
+    modal.classList.remove("active");
+    document.body.classList.remove("modal-open");
+  }
+}
+
+// CLOSE MODAL WITH ESCAPE KEY
+document.addEventListener("keydown", event => {
+  if (event.key === "Escape") {
+    closeProductModal();
+  }
+});
+
+// RENDER PRODUCTS
 function renderProducts() {
   if (!productGrid) return;
 
@@ -258,7 +392,7 @@ function renderProducts() {
 
         <div class="product-logo">
           <img
-            src="${product.logo}"
+            src="${escapeHTML(product.logo)}"
             alt="${escapeHTML(product.name)} logo"
             loading="lazy"
             onerror="
@@ -279,6 +413,14 @@ function renderProducts() {
         <p class="product-description">
           ${escapeHTML(product.description)}
         </p>
+
+        <button
+          class="details-btn"
+          type="button"
+          data-details="${escapeHTML(product.name)}"
+        >
+          View Product Details
+        </button>
 
         <div class="product-benefits">
           <h4>What's included</h4>
@@ -316,6 +458,7 @@ function renderProducts() {
     `;
   }).join("");
 
+  // EXISTING CHECKOUT BUTTONS
   productGrid.querySelectorAll(".buy-btn").forEach(button => {
     button.addEventListener("click", () => {
       const productName = button.dataset.product;
@@ -342,8 +485,22 @@ function renderProducts() {
       startCheckout(product.name, packageIndex);
     });
   });
+
+  // NEW PRODUCT DETAILS BUTTONS
+  productGrid.querySelectorAll(".details-btn").forEach(button => {
+    button.addEventListener("click", () => {
+      const product = products.find(item => {
+        return item.name === button.dataset.details;
+      });
+
+      if (product) {
+        openProductModal(product);
+      }
+    });
+  });
 }
 
+// CHECKOUT
 async function startCheckout(productName, packageIndex) {
   const email = prompt("Enter your email address:");
 
@@ -385,10 +542,12 @@ async function startCheckout(productName, packageIndex) {
   }
 }
 
+// SEARCH
 if (searchInput) {
   searchInput.addEventListener("input", renderProducts);
 }
 
+// CATEGORY FILTER
 document.querySelectorAll(".category").forEach(button => {
   button.addEventListener("click", () => {
     document.querySelectorAll(".category").forEach(item => {
@@ -402,4 +561,5 @@ document.querySelectorAll(".category").forEach(button => {
   });
 });
 
+// INITIALIZE
 renderProducts();

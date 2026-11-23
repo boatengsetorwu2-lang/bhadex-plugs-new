@@ -2,196 +2,342 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#080808">
-  <title>Customer Dashboard | BHADEX PLUGS</title>
-  <link rel="stylesheet" href="styles.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#080811">
+<title>Customer Dashboard | BHADEX PLUGS</title>
+<link rel="stylesheet" href="styles.css">
 
-  <style>
-    * { box-sizing: border-box; }
+<style>
+* {
+  box-sizing: border-box;
+  scroll-behavior: smooth;
+}
 
-    body { background: #080808; }
+body {
+  margin: 0;
+  background: #080811;
+  color: #f5f5ff;
+  font-family: Arial, sans-serif;
+}
 
-    .dashboard {
-      width: min(1100px, 94%);
-      margin: 35px auto;
-    }
+.topbar {
+  background: #101020;
+  border-bottom: 1px solid #303052;
+  padding: 18px 5%;
+}
 
-    .welcome {
-      margin-bottom: 25px;
-    }
+.brand {
+  color: white;
+  font-weight: 900;
+  letter-spacing: 1.5px;
+  text-decoration: none;
+}
 
-    .welcome p { color: #aaa; }
+.dashboard {
+  width: min(1150px, 94%);
+  margin: 35px auto;
+}
 
-    .dashboard-nav {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      margin: 25px 0;
-    }
+.welcome {
+  padding: 32px;
+  border-radius: 18px;
+  background: linear-gradient(120deg, #25105a, #123b75, #151525);
+  border: 1px solid #46418b;
+  margin-bottom: 25px;
+  box-shadow: 0 10px 35px rgba(58,39,160,.2);
+}
 
-    .dashboard-nav a {
-      color: #ddd;
-      text-decoration: none;
-      background: #151515;
-      border: 1px solid #292929;
-      padding: 11px 16px;
-      border-radius: 7px;
-      font-size: 14px;
-    }
+.welcome h1 {
+  font-size: clamp(27px, 5vw, 38px);
+  margin: 0 0 12px;
+}
 
-    .dashboard-nav a:hover {
-      background: #d71920;
-      color: white;
-    }
+.welcome p {
+  color: #d2d3f5;
+}
 
-    .summary-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 15px;
-      margin-bottom: 25px;
-    }
+.dashboard-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 25px 0;
+}
 
-    .summary-card {
-      background: #111;
-      border: 1px solid #292929;
-      padding: 20px;
-      border-radius: 12px;
-    }
+.dashboard-nav a {
+  color: #dddfff;
+  text-decoration: none;
+  background: #151529;
+  border: 1px solid #33335b;
+  padding: 12px 16px;
+  border-radius: 9px;
+  transition: .25s;
+  font-size: 14px;
+}
 
-    .summary-card p {
-      color: #aaa;
-      margin-bottom: 8px;
-    }
+.dashboard-nav a:hover {
+  background: #6139db;
+  color: white;
+  transform: translateY(-2px);
+}
 
-    .summary-card h2 {
-      margin: 0;
-      font-size: 27px;
-    }
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 25px;
+}
 
-    .dashboard-card {
-      background: #111;
-      border: 1px solid #292929;
-      padding: 24px;
-      border-radius: 12px;
-      margin-bottom: 22px;
-      scroll-margin-top: 25px;
-    }
+.summary-card {
+  padding: 23px;
+  border-radius: 15px;
+  border: 1px solid #39365e;
+  background: linear-gradient(145deg, #191932, #10101c);
+  transition: .25s;
+}
 
-    .dashboard-card h2 {
-      margin-top: 0;
-    }
+.summary-card:hover {
+  transform: translateY(-5px);
+}
 
-    .muted { color: #aaa; }
+.summary-card:nth-child(1) {
+  border-left: 4px solid #8b5cf6;
+}
 
-    .form-group { margin: 16px 0; }
+.summary-card:nth-child(2) {
+  border-left: 4px solid #f59e0b;
+}
 
-    .form-group label {
-      display: block;
-      margin-bottom: 8px;
-    }
+.summary-card:nth-child(3) {
+  border-left: 4px solid #38bdf8;
+}
 
-    .form-group input {
-      width: 100%;
-      padding: 13px;
-      background: #080808;
-      border: 1px solid #393939;
-      border-radius: 7px;
-      color: white;
-    }
+.summary-card:nth-child(4) {
+  border-left: 4px solid #22c55e;
+}
 
-    .primary-button {
-      background: #d71920;
-      color: white;
-      border: 0;
-      padding: 12px 20px;
-      border-radius: 7px;
-      cursor: pointer;
-      font-weight: bold;
-    }
+.summary-card p {
+  color: #b6b6d4;
+  margin: 0 0 10px;
+  font-size: 14px;
+}
 
-    .primary-button:disabled {
-      opacity: .6;
-      cursor: not-allowed;
-    }
+.summary-card h2 {
+  font-size: 32px;
+  margin: 0;
+  color: white;
+}
 
-    .secondary-button {
-      background: #242424;
-      color: white;
-      border: 1px solid #444;
-      padding: 10px 16px;
-      border-radius: 7px;
-      cursor: pointer;
-    }
+.dashboard-card {
+  background: linear-gradient(145deg, #171729, #10101b);
+  border: 1px solid #303052;
+  padding: 26px;
+  border-radius: 16px;
+  margin-bottom: 23px;
+  scroll-margin-top: 25px;
+  box-shadow: 0 8px 25px rgba(0,0,0,.2);
+}
 
-    .logout-button {
-      background: #d71920;
-      color: white;
-      border: 0;
-      padding: 12px 20px;
-      border-radius: 7px;
-      cursor: pointer;
-    }
+.dashboard-card h2 {
+  margin-top: 0;
+  color: white;
+  font-size: 21px;
+}
 
-    .order {
-      border-top: 1px solid #333;
-      padding: 18px 0;
-    }
+.muted {
+  color: #aaaacb;
+}
 
-    .order:first-child { border-top: 0; }
+.form-group {
+  margin: 18px 0;
+}
 
-    .order p { margin: 8px 0; }
+.form-group label {
+  display: block;
+  margin-bottom: 9px;
+  color: #deddf5;
+  font-size: 14px;
+}
 
-    .status {
-      color: #4ade80;
-    }
+.form-group input {
+  width: 100%;
+  padding: 14px;
+  background: #090914;
+  border: 1px solid #39395e;
+  border-radius: 9px;
+  color: white;
+  outline: none;
+}
 
-    .support-links {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
-    }
+.form-group input:focus {
+  border-color: #9276ff;
+  box-shadow: 0 0 0 3px rgba(139,92,246,.15);
+}
 
-    .support-links a {
-      color: #ff7777;
-      text-decoration: none;
-      background: #1b1b1b;
-      padding: 12px 16px;
-      border-radius: 7px;
-    }
+.form-group input:disabled {
+  opacity: .6;
+}
 
-    .support-links a:hover {
-      background: #292929;
-    }
+.primary-button {
+  background: linear-gradient(110deg, #713bea, #a13ee8);
+  color: white;
+  border: 0;
+  padding: 13px 22px;
+  border-radius: 9px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: .25s;
+}
 
-    .message {
-      margin-top: 14px;
-      font-size: 14px;
-      color: #ff7777;
-    }
+.primary-button:hover {
+  filter: brightness(1.2);
+  transform: translateY(-2px);
+}
 
-    .success { color: #4ade80; }
+.primary-button:disabled {
+  opacity: .6;
+  cursor: not-allowed;
+}
 
-    .reference {
-      color: #aaa;
-      font-size: 13px;
-      overflow-wrap: anywhere;
-    }
+.secondary-button {
+  background: #222244;
+  color: white;
+  border: 1px solid #494979;
+  padding: 10px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+}
 
-    @media (max-width: 700px) {
-      .summary-grid {
-        grid-template-columns: repeat(2, 1fr);
-      }
+.secondary-button:hover {
+  background: #383875;
+}
 
-      .dashboard-card { padding: 18px; }
+.logout-button {
+  background: linear-gradient(110deg, #d71920, #ff4b55);
+  color: white;
+  border: 0;
+  padding: 13px 22px;
+  border-radius: 9px;
+  cursor: pointer;
+  font-weight: bold;
+}
 
-      .dashboard-nav a {
-        flex: 1 1 40%;
-        text-align: center;
-      }
-    }
-  </style>
+.order {
+  border-top: 1px solid #34344e;
+  padding: 20px 0;
+}
+
+.order:first-child {
+  border-top: 0;
+}
+
+.order p {
+  margin: 10px 0;
+  color: #d2d2e9;
+}
+
+.order strong {
+  color: white;
+}
+
+.status {
+  color: #4ade80 !important;
+  font-weight: bold;
+}
+
+.support-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 13px;
+  margin-top: 20px;
+}
+
+.support-links a {
+  color: white;
+  text-decoration: none;
+  padding: 14px 19px;
+  border-radius: 9px;
+  font-weight: bold;
+}
+
+.email-support {
+  background: linear-gradient(110deg, #6040ce, #8748dd);
+}
+
+.whatsapp-support {
+  background: #168d50;
+}
+
+.message {
+  margin-top: 14px;
+  font-size: 14px;
+  color: #ff7777;
+}
+
+.success {
+  color: #4ade80;
+}
+
+.reference {
+  color: #aaaacb;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+/* FLOATING WHATSAPP BUTTON */
+.whatsapp-float {
+  position: fixed;
+  width: 62px;
+  height: 62px;
+  right: 22px;
+  bottom: 22px;
+  background: #25D366;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  box-shadow: 0 5px 25px rgba(37,211,102,.4);
+  z-index: 9999;
+  transition: transform .2s ease;
+}
+
+.whatsapp-float:hover {
+  transform: scale(1.12);
+}
+
+.whatsapp-float svg {
+  width: 34px;
+  height: 34px;
+  fill: currentColor;
+}
+
+@media(max-width:750px) {
+  .summary-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .welcome {
+    padding: 24px;
+  }
+
+  .dashboard-card {
+    padding: 19px;
+  }
+
+  .dashboard-nav a {
+    flex: 1 1 40%;
+    text-align: center;
+  }
+}
+
+@media(max-width:380px) {
+  .summary-grid {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
 </head>
 
 <body>
@@ -205,7 +351,7 @@
   <section class="welcome">
     <h1>Customer Dashboard</h1>
     <p>Welcome back, <strong id="welcomeName">Customer</strong>.</p>
-    <p class="muted">Manage your purchases, profile and account security.</p>
+    <p>Manage your purchases, profile and account security.</p>
   </section>
 
   <nav class="dashboard-nav">
@@ -217,9 +363,10 @@
     <a href="#support">Support</a>
   </nav>
 
-  <!-- OVERVIEW -->
+  <!-- DASHBOARD STATISTICS -->
   <section id="overview">
     <div class="summary-grid">
+
       <div class="summary-card">
         <p>Total Orders</p>
         <h2 id="totalOrders">0</h2>
@@ -239,25 +386,20 @@
         <p>Delivered</p>
         <h2 id="deliveredOrders">0</h2>
       </div>
+
     </div>
   </section>
 
   <!-- TRACK ORDER -->
   <section class="dashboard-card" id="track">
     <h2>Track Your Order</h2>
-    <p class="muted">
-      Enter your order reference to check its payment and delivery status.
-    </p>
+    <p class="muted">Enter your order reference to check your order status.</p>
 
     <form id="trackForm">
       <div class="form-group">
         <label for="trackReference">Order Reference</label>
-        <input
-          id="trackReference"
-          type="text"
-          placeholder="Enter your order reference"
-          required
-        >
+        <input id="trackReference" type="text"
+          placeholder="Enter your order reference" required>
       </div>
 
       <button class="primary-button" type="submit" id="trackButton">
@@ -271,7 +413,7 @@
   <!-- MY ORDERS -->
   <section class="dashboard-card" id="orders">
     <h2>My Orders</h2>
-    <p class="muted">View your purchase history and delivery progress.</p>
+    <p class="muted">Your purchase history and delivery progress.</p>
 
     <div id="ordersList">
       <p class="muted">Loading your orders...</p>
@@ -281,12 +423,12 @@
   <!-- PROFILE -->
   <section class="dashboard-card" id="profile">
     <h2>My Profile</h2>
-    <p class="muted">View and update your account information.</p>
+    <p class="muted">Update your customer information.</p>
 
     <form id="profileForm">
       <div class="form-group">
         <label for="profileName">Full Name</label>
-        <input id="profileName" type="text" required maxlength="100">
+        <input id="profileName" type="text" maxlength="100" required>
       </div>
 
       <div class="form-group">
@@ -315,12 +457,14 @@
 
       <div class="form-group">
         <label for="newPassword">New Password</label>
-        <input id="newPassword" type="password" minlength="10" maxlength="128" required>
+        <input id="newPassword" type="password"
+          minlength="10" maxlength="128" required>
       </div>
 
       <div class="form-group">
         <label for="confirmPassword">Confirm New Password</label>
-        <input id="confirmPassword" type="password" minlength="10" maxlength="128" required>
+        <input id="confirmPassword" type="password"
+          minlength="10" maxlength="128" required>
       </div>
 
       <button class="primary-button" type="submit" id="passwordButton">
@@ -331,19 +475,22 @@
     <div id="passwordMessage" class="message" role="status"></div>
   </section>
 
-  <!-- SUPPORT -->
+  <!-- CUSTOMER SUPPORT -->
   <section class="dashboard-card" id="support">
     <h2>Customer Support</h2>
     <p class="muted">
-      Need help with a purchase or have a question? Contact our support team.
+      Need assistance? Contact the BHADEX PLUGS support team.
     </p>
 
     <div class="support-links">
-      <a href="mailto:bhadexplugs@gmail.com">
+      <a class="email-support" href="mailto:bhadexplugs@gmail.com">
         Email Support
       </a>
 
-      <a href="https://wa.me/233552817566" target="_blank" rel="noopener noreferrer">
+      <a class="whatsapp-support"
+        href="https://wa.me/233552817566"
+        target="_blank"
+        rel="noopener noreferrer">
         WhatsApp Support
       </a>
     </div>
@@ -352,7 +499,7 @@
   <!-- LOGOUT -->
   <section class="dashboard-card">
     <h2>Sign Out</h2>
-    <p class="muted">Sign out of your BHADEX PLUGS customer account.</p>
+    <p class="muted">Sign out of your customer account.</p>
 
     <button class="logout-button" id="logoutButton">
       Logout
@@ -363,6 +510,20 @@
 
 </main>
 
+<!-- FLOATING WHATSAPP LOGO -->
+<a
+  href="https://wa.me/233552817566"
+  class="whatsapp-float"
+  target="_blank"
+  rel="noopener noreferrer"
+  aria-label="Chat with BHADEX PLUGS on WhatsApp"
+  title="Chat with us on WhatsApp"
+>
+  <svg viewBox="0 0 32 32" aria-hidden="true">
+    <path d="M16 3C8.82 3 3 8.82 3 16c0 2.3.61 4.55 1.77 6.53L3 29l6.63-1.74A12.94 12.94 0 0 0 16 29c7.18 0 13-5.82 13-13S23.18 3 16 3zm0 23.6c-1.95 0-3.86-.52-5.53-1.5l-.4-.24-3.94 1.03 1.05-3.84-.26-.42A10.56 10.56 0 1 1 16 26.6zm5.8-7.9c-.32-.16-1.9-.94-2.2-1.05-.3-.11-.51-.16-.73.16-.22.32-.84 1.05-1.03 1.27-.19.22-.38.24-.7.08-.32-.16-1.36-.5-2.59-1.59-.96-.85-1.6-1.9-1.78-2.22-.19-.32-.02-.49.14-.65.14-.14.32-.38.48-.57.16-.19.22-.32.32-.54.11-.22.05-.4-.03-.57-.08-.16-.73-1.76-1-2.41-.27-.64-.54-.55-.73-.56h-.62c-.22 0-.57.08-.86.4-.3.32-1.13 1.1-1.13 2.7s1.16 3.14 1.32 3.36c.16.22 2.29 3.5 5.55 4.9.78.34 1.39.54 1.87.69.78.25 1.49.21 2.05.13.63-.1 1.9-.78 2.17-1.54.27-.76.27-1.41.19-1.54-.08-.14-.3-.22-.62-.38z"/>
+  </svg>
+</a>
+
 <script>
 const welcomeName = document.getElementById("welcomeName");
 const profileName = document.getElementById("profileName");
@@ -371,8 +532,8 @@ const ordersList = document.getElementById("ordersList");
 
 let customerOrders = [];
 
-function showMessage(elementId, text, success = false) {
-  const element = document.getElementById(elementId);
+function showMessage(id, text, success = false) {
+  const element = document.getElementById(id);
   element.textContent = text;
   element.className = success ? "message success" : "message";
 }
@@ -404,7 +565,6 @@ async function apiRequest(url, options = {}) {
 async function loadAccount() {
   try {
     const result = await apiRequest("/api/customer/me");
-
     const customer = result.customer;
 
     welcomeName.textContent = customer.name || "Customer";
@@ -418,11 +578,10 @@ async function loadAccount() {
   }
 }
 
-// LOAD ORDERS
+// LOAD CUSTOMER ORDERS
 async function loadOrders() {
   try {
     const result = await apiRequest("/api/customer/orders");
-
     customerOrders = result.orders || [];
 
     updateStatistics();
@@ -433,7 +592,7 @@ async function loadOrders() {
   }
 }
 
-// UPDATE DASHBOARD STATISTICS
+// UPDATE STATISTICS
 function updateStatistics() {
   const total = customerOrders.length;
 
@@ -457,7 +616,7 @@ function updateStatistics() {
   document.getElementById("deliveredOrders").textContent = delivered;
 }
 
-// CREATE ORDER DISPLAY
+// CREATE ORDER CARD
 function createOrderElement(order) {
   const item = document.createElement("div");
   item.className = "order";
@@ -496,7 +655,10 @@ function createOrderElement(order) {
   trackButton.addEventListener("click", () => {
     document.getElementById("trackReference").value = order.reference || "";
     document.getElementById("track").scrollIntoView({ behavior: "smooth" });
-    if (order.reference) trackOrder(order.reference);
+
+    if (order.reference) {
+      trackOrder(order.reference);
+    }
   });
 
   item.appendChild(trackButton);
@@ -504,7 +666,7 @@ function createOrderElement(order) {
   return item;
 }
 
-// DISPLAY CUSTOMER ORDERS
+// DISPLAY ORDERS
 function displayOrders() {
   ordersList.replaceChildren();
 
@@ -521,10 +683,9 @@ function displayOrders() {
   });
 }
 
-// TRACK A CUSTOMER'S OWN ORDER
+// TRACK CUSTOMER ORDER
 async function trackOrder(reference) {
   const resultBox = document.getElementById("trackResult");
-
   resultBox.textContent = "Checking your order...";
 
   try {
@@ -533,7 +694,6 @@ async function trackOrder(reference) {
     );
 
     const order = result.order || result;
-
     resultBox.replaceChildren();
 
     const details = [
@@ -563,7 +723,6 @@ document.getElementById("trackForm").addEventListener("submit", async event => {
   event.preventDefault();
 
   const reference = document.getElementById("trackReference").value.trim();
-
   if (!reference) return;
 
   const button = document.getElementById("trackButton");
@@ -580,7 +739,6 @@ document.getElementById("trackForm").addEventListener("submit", async event => {
 document.getElementById("profileForm").addEventListener("submit", async event => {
   event.preventDefault();
 
-  const button = document.getElementById("profileButton");
   const name = profileName.value.trim();
 
   if (!name) {
@@ -588,6 +746,7 @@ document.getElementById("profileForm").addEventListener("submit", async event =>
     return;
   }
 
+  const button = document.getElementById("profileButton");
   button.disabled = true;
   button.textContent = "Saving...";
 
@@ -622,7 +781,7 @@ document.getElementById("passwordForm").addEventListener("submit", async event =
   const confirmPassword = document.getElementById("confirmPassword").value;
 
   if (newPassword.length < 10) {
-    showMessage("passwordMessage", "Your new password must have at least 10 characters.");
+    showMessage("passwordMessage", "New password must have at least 10 characters.");
     return;
   }
 

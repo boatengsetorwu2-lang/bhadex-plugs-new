@@ -41,7 +41,7 @@ const products = [
   },
   {
     name: "Canva Pro",
-    logo: "https://cdn.simpleicons.org/canva/00C4CC",
+    logo: "https://www.google.com/s2/favicons?domain=canva.com&sz=128",
     category: "Productivity",
     prices: [25, 70, 135],
     description: "Create professional designs with Canva's premium creative tools.",
@@ -55,7 +55,7 @@ const products = [
   },
   {
     name: "ChatGPT Plus",
-    logo: "https://cdn.simpleicons.org/openai/FFFFFF",
+    logo: "https://www.google.com/s2/favicons?domain=openai.com&sz=128",
     category: "Productivity",
     prices: [45],
     description: "Get access to additional ChatGPT capabilities and higher usage limits.",
@@ -69,7 +69,7 @@ const products = [
   },
   {
     name: "Microsoft 365",
-    logo: "https://cdn.simpleicons.org/microsoft365/EB3C00",
+    logo: "https://www.google.com/s2/favicons?domain=microsoft.com&sz=128",
     category: "Productivity",
     prices: [30, 85, 160],
     description: "Work smarter with Microsoft's productivity applications.",
@@ -82,7 +82,7 @@ const products = [
   },
   {
     name: "Disney+",
-    logo: "https://cdn.simpleicons.org/disneyplus/113CCF",
+    logo: "https://www.google.com/s2/favicons?domain=disneyplus.com&sz=128",
     category: "Entertainment",
     prices: [25, 70, 135],
     description: "Stream entertainment from Disney and its popular brands.",
@@ -96,7 +96,7 @@ const products = [
   },
   {
     name: "Prime Video",
-    logo: "https://cdn.simpleicons.org/primevideo/00A8E1",
+    logo: "https://www.google.com/s2/favicons?domain=primevideo.com&sz=128",
     category: "Entertainment",
     prices: [20, 55, 105],
     description: "Explore movies, television shows and Amazon Originals.",

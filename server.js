@@ -15,10 +15,9 @@ const { pool, initializeDatabase } = require("./database");
 
 const app = express();
 const PORT = process.env.PORT || 10000;
+const scryptAsync = promisify(crypto.scrypt);
 
 app.set("trust proxy", 1);
-
-const scryptAsync = promisify(crypto.scrypt);
 
 // PRODUCT PRICES
 const PRODUCT_PRICES = {
@@ -54,7 +53,7 @@ function getExpectedAmount(product, packageName) {
   return prices[index] * 100;
 }
 
-// ESCAPE HTML
+// HTML ESCAPING
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, character => ({
     "&": "&amp;",
@@ -83,8 +82,9 @@ async function hashCustomerPassword(password) {
 
 async function verifyCustomerPassword(password, storedHash) {
   try {
-    const parts = storedHash.split(":");
+    if (typeof storedHash !== "string") return false;
 
+    const parts = storedHash.split(":");
     if (parts.length !== 2) return false;
 
     const [salt, key] = parts;
@@ -112,7 +112,7 @@ function generateOTP() {
   return crypto.randomInt(100000, 1000000).toString();
 }
 
-function safeOTPCompare(received, stored) {
+function compareOTP(email, received, stored) {
   if (
     typeof received !== "string" ||
     typeof stored !== "string" ||
@@ -122,18 +122,16 @@ function safeOTPCompare(received, stored) {
     return false;
   }
 
-  const receivedHash = Buffer.from(
-    hashOTP("", received),
-    "hex"
-  );
-
+  const receivedHash = Buffer.from(hashOTP(email, received), "hex");
   const storedHash = Buffer.from(stored, "hex");
 
-  return receivedHash.length === storedHash.length &&
-    crypto.timingSafeEqual(receivedHash, storedHash);
+  return (
+    receivedHash.length === storedHash.length &&
+    crypto.timingSafeEqual(receivedHash, storedHash)
+  );
 }
 
-// EMAIL VERIFICATION OTP
+// EMAIL VERIFICATION EMAIL
 async function sendEmailVerificationOTP(email, code) {
   if (!process.env.RESEND_API_KEY || !process.env.RESEND_FROM_EMAIL) {
     throw new Error("Resend environment variables are missing.");
@@ -169,7 +167,43 @@ async function sendEmailVerificationOTP(email, code) {
   );
 }
 
-// AUTOMATIC ORDER CONFIRMATION EMAIL
+// PASSWORD RESET EMAIL
+async function sendPasswordResetOTP(email, code) {
+  if (!process.env.RESEND_API_KEY || !process.env.RESEND_FROM_EMAIL) {
+    throw new Error("Resend environment variables are missing.");
+  }
+
+  await axios.post(
+    "https://api.resend.com/emails",
+    {
+      from: process.env.RESEND_FROM_EMAIL,
+      to: [email],
+      subject: "Your BHADEX PLUGS Password Reset Code",
+      html: `
+        <div style="font-family:Arial,sans-serif;max-width:550px;margin:auto;padding:30px;color:#222;">
+          <h2 style="color:#d71920;">BHADEX PLUGS</h2>
+          <h3>Password reset request</h3>
+          <p>Use this code to reset your account password:</p>
+          <div style="font-size:32px;font-weight:bold;letter-spacing:8px;color:#d71920;padding:15px 0;">
+            ${code}
+          </div>
+          <p>This code expires in 10 minutes.</p>
+          <p>You have a maximum of 5 incorrect attempts.</p>
+          <p>If you did not request this, you can ignore this email.</p>
+          <p><strong>DIGITAL ACCESS, ELEVATED</strong></p>
+        </div>
+      `
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+        "Content-Type": "application/json"
+      }
+    }
+  );
+}
+
+// ORDER CONFIRMATION EMAIL
 async function sendOrderConfirmationEmail(order) {
   const trackingUrl =
     `${process.env.BASE_URL.replace(/\/+$/, "")}/track.html`;
@@ -327,6 +361,20 @@ const customerVerificationLimiter = rateLimit({
 });
 
 const customerResendLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+const passwordResetLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+const passwordChangeLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 5,
   standardHeaders: true,
@@ -534,7 +582,7 @@ app.post(
       }
 
       const existing = await pool.query(
-        `SELECT id, email_verified, email_otp_last_sent_at
+        `SELECT id, email_verified
          FROM customers
          WHERE LOWER(email) = $1
          LIMIT 1`,
@@ -652,12 +700,7 @@ app.post(
         });
       }
 
-      const isValid = crypto.timingSafeEqual(
-        Buffer.from(hashOTP(email, code), "hex"),
-        Buffer.from(customer.email_otp_hash, "hex")
-      );
-
-      if (!isValid) {
+      if (!compareOTP(email, code, customer.email_otp_hash)) {
         await pool.query(
           `UPDATE customers
            SET email_otp_attempts = email_otp_attempts + 1
@@ -697,7 +740,7 @@ app.post(
   }
 );
 
-// RESEND VERIFICATION CODE
+// RESEND EMAIL VERIFICATION CODE
 app.post(
   "/api/customer/resend-otp",
   customerResendLimiter,
@@ -743,37 +786,30 @@ app.post(
       const code = generateOTP();
       const otpHash = hashOTP(email, code);
 
+      // Send first so a failed email does not invalidate the previous code.
+      await sendEmailVerificationOTP(email, code);
+
       await pool.query(
         `UPDATE customers
          SET email_otp_hash = $1,
              email_otp_expires_at = NOW() + INTERVAL '10 minutes',
              email_otp_attempts = 0,
              email_otp_last_sent_at = NOW()
-         WHERE id = $2`,
+         WHERE id = $2 AND email_verified = FALSE`,
         [otpHash, customer.id]
       );
-
-      try {
-        await sendEmailVerificationOTP(email, code);
-      } catch (emailError) {
-        console.error(
-          "Resend verification error:",
-          emailError.response?.data || emailError.message
-        );
-
-        return res.status(503).json({
-          error: "Unable to send a new code. Please try again later."
-        });
-      }
 
       return res.json({
         success: true,
         message: "A new verification code has been sent."
       });
     } catch (error) {
-      console.error("Resend OTP error:", error.message);
-      return res.status(500).json({
-        error: "Unable to resend your verification code."
+      console.error(
+        "Resend OTP error:",
+        error.response?.data || error.message
+      );
+      return res.status(503).json({
+        error: "Unable to send a new code. Please try again later."
       });
     }
   }
@@ -832,6 +868,308 @@ app.post(
       console.error("Customer login error:", error.message);
       return res.status(500).json({
         error: "Unable to log in right now."
+      });
+    }
+  }
+);
+
+// FORGOT PASSWORD - REQUEST RESET CODE
+app.post(
+  "/api/customer/forgot-password",
+  passwordResetLimiter,
+  async (req, res) => {
+    const genericMessage =
+      "If a verified account exists for that email, a password reset code will be sent.";
+
+    try {
+      const email = String(req.body?.email || "").trim().toLowerCase();
+
+      if (!validEmail(email)) {
+        return res.status(400).json({
+          error: "Enter a valid email address."
+        });
+      }
+
+      const result = await pool.query(
+        `SELECT id, email_verified, password_reset_last_sent_at
+         FROM customers
+         WHERE LOWER(email) = $1
+         LIMIT 1`,
+        [email]
+      );
+
+      if (
+        result.rows.length === 0 ||
+        !result.rows[0].email_verified
+      ) {
+        return res.json({
+          success: true,
+          message: genericMessage
+        });
+      }
+
+      const customer = result.rows[0];
+
+      if (
+        customer.password_reset_last_sent_at &&
+        Date.now() - new Date(customer.password_reset_last_sent_at).getTime() < 60000
+      ) {
+        return res.json({
+          success: true,
+          message: genericMessage
+        });
+      }
+
+      const code = generateOTP();
+      const otpHash = hashOTP(email, code);
+
+      // Send the code before replacing the stored one.
+      await sendPasswordResetOTP(email, code);
+
+      await pool.query(
+        `UPDATE customers
+         SET password_reset_otp_hash = $1,
+             password_reset_otp_expires_at = NOW() + INTERVAL '10 minutes',
+             password_reset_otp_attempts = 0,
+             password_reset_last_sent_at = NOW()
+         WHERE id = $2 AND email_verified = TRUE`,
+        [otpHash, customer.id]
+      );
+
+      return res.json({
+        success: true,
+        message: genericMessage
+      });
+    } catch (error) {
+      console.error(
+        "Forgot password error:",
+        error.response?.data || error.message
+      );
+
+      return res.status(503).json({
+        error: "We could not send a reset code right now. Please try again later."
+      });
+    }
+  }
+);
+
+// RESET PASSWORD - VERIFY CODE AND SAVE NEW PASSWORD
+app.post(
+  "/api/customer/reset-password",
+  passwordResetLimiter,
+  async (req, res) => {
+    try {
+      const email = String(req.body?.email || "").trim().toLowerCase();
+      const code = String(req.body?.code || "").trim();
+      const newPassword = req.body?.newPassword;
+
+      if (
+        !validEmail(email) ||
+        !/^\d{6}$/.test(code) ||
+        typeof newPassword !== "string" ||
+        newPassword.length < 10 ||
+        newPassword.length > 128
+      ) {
+        return res.status(400).json({
+          error: "Enter a valid email, 6-digit code and password of at least 10 characters."
+        });
+      }
+
+      const result = await pool.query(
+        `SELECT id, email, password_reset_otp_hash,
+                password_reset_otp_expires_at,
+                password_reset_otp_attempts
+         FROM customers
+         WHERE LOWER(email) = $1
+           AND email_verified = TRUE
+         LIMIT 1`,
+        [email]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(400).json({
+          error: "Invalid or expired reset code. Request a new code and try again."
+        });
+      }
+
+      const customer = result.rows[0];
+
+      if (
+        !customer.password_reset_otp_hash ||
+        !customer.password_reset_otp_expires_at ||
+        new Date(customer.password_reset_otp_expires_at) <= new Date()
+      ) {
+        return res.status(400).json({
+          error: "Invalid or expired reset code. Request a new code and try again."
+        });
+      }
+
+      if (customer.password_reset_otp_attempts >= 5) {
+        return res.status(429).json({
+          error: "Too many incorrect attempts. Request a new reset code."
+        });
+      }
+
+      if (!compareOTP(email, code, customer.password_reset_otp_hash)) {
+        await pool.query(
+          `UPDATE customers
+           SET password_reset_otp_attempts = password_reset_otp_attempts + 1
+           WHERE id = $1`,
+          [customer.id]
+        );
+
+        return res.status(400).json({
+          error: "Incorrect reset code."
+        });
+      }
+
+      const passwordHash = await hashCustomerPassword(newPassword);
+
+      const update = await pool.query(
+        `UPDATE customers
+         SET password_hash = $1,
+             password_reset_otp_hash = NULL,
+             password_reset_otp_expires_at = NULL,
+             password_reset_otp_attempts = 0,
+             password_reset_last_sent_at = NULL,
+             updated_at = NOW()
+         WHERE id = $2
+           AND password_reset_otp_hash = $3
+         RETURNING id`,
+        [passwordHash, customer.id, customer.password_reset_otp_hash]
+      );
+
+      if (update.rows.length === 0) {
+        return res.status(400).json({
+          error: "This reset code is no longer valid. Request a new code."
+        });
+      }
+
+      return res.json({
+        success: true,
+        message: "Your password has been reset. You can now log in."
+      });
+    } catch (error) {
+      console.error("Password reset error:", error.message);
+      return res.status(500).json({
+        error: "Unable to reset your password right now."
+      });
+    }
+  }
+);
+
+// CHANGE PASSWORD - LOGGED-IN CUSTOMER
+app.post(
+  "/api/customer/change-password",
+  requireCustomer,
+  passwordChangeLimiter,
+  async (req, res) => {
+    try {
+      const currentPassword = req.body?.currentPassword;
+      const newPassword = req.body?.newPassword;
+
+      if (
+        typeof currentPassword !== "string" ||
+        currentPassword.length > 128 ||
+        typeof newPassword !== "string" ||
+        newPassword.length < 10 ||
+        newPassword.length > 128
+      ) {
+        return res.status(400).json({
+          error: "Enter your current password and a new password of at least 10 characters."
+        });
+      }
+
+      if (currentPassword === newPassword) {
+        return res.status(400).json({
+          error: "Your new password must be different from your current password."
+        });
+      }
+
+      const result = await pool.query(
+        `SELECT id, password_hash
+         FROM customers
+         WHERE id = $1
+         LIMIT 1`,
+        [req.session.customerId]
+      );
+
+      if (
+        result.rows.length === 0 ||
+        !(await verifyCustomerPassword(
+          currentPassword,
+          result.rows[0].password_hash
+        ))
+      ) {
+        return res.status(400).json({
+          error: "Your current password is incorrect."
+        });
+      }
+
+      const newHash = await hashCustomerPassword(newPassword);
+
+      await pool.query(
+        `UPDATE customers
+         SET password_hash = $1,
+             password_reset_otp_hash = NULL,
+             password_reset_otp_expires_at = NULL,
+             password_reset_otp_attempts = 0,
+             updated_at = NOW()
+         WHERE id = $2`,
+        [newHash, req.session.customerId]
+      );
+
+      return res.json({
+        success: true,
+        message: "Your password has been changed successfully."
+      });
+    } catch (error) {
+      console.error("Change password error:", error.message);
+      return res.status(500).json({
+        error: "Unable to change your password right now."
+      });
+    }
+  }
+);
+
+// UPDATE CUSTOMER PROFILE
+app.patch(
+  "/api/customer/profile",
+  requireCustomer,
+  async (req, res) => {
+    try {
+      const name = String(req.body?.name || "").trim();
+
+      if (name.length < 2 || name.length > 100) {
+        return res.status(400).json({
+          error: "Your name must be between 2 and 100 characters."
+        });
+      }
+
+      const result = await pool.query(
+        `UPDATE customers
+         SET name = $1,
+             updated_at = NOW()
+         WHERE id = $2
+         RETURNING id, name, email, created_at`,
+        [name, req.session.customerId]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({
+          error: "Customer account not found."
+        });
+      }
+
+      return res.json({
+        success: true,
+        message: "Your profile has been updated.",
+        customer: result.rows[0]
+      });
+    } catch (error) {
+      console.error("Profile update error:", error.message);
+      return res.status(500).json({
+        error: "Unable to update your profile."
       });
     }
   }
@@ -907,6 +1245,60 @@ app.get("/api/customer/orders", requireCustomer, async (req, res) => {
     });
   }
 });
+
+// CUSTOMER VIEW ONE OF THEIR OWN ORDERS
+app.get(
+  "/api/customer/orders/:reference",
+  requireCustomer,
+  async (req, res) => {
+    try {
+      const reference = String(req.params.reference || "").trim();
+
+      if (!reference || reference.length > 100) {
+        return res.status(400).json({
+          error: "Invalid order reference."
+        });
+      }
+
+      const customerResult = await pool.query(
+        `SELECT email FROM customers WHERE id = $1 LIMIT 1`,
+        [req.session.customerId]
+      );
+
+      if (customerResult.rows.length === 0) {
+        return res.status(404).json({
+          error: "Customer account not found."
+        });
+      }
+
+      const email = customerResult.rows[0].email.toLowerCase();
+
+      const result = await pool.query(
+        `SELECT
+          reference, product, package, amount, currency, status,
+          fulfillment_status, created_at, delivered_at
+         FROM orders
+         WHERE reference = $1
+           AND LOWER(customer_email) = $2
+         LIMIT 1`,
+        [reference, email]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({
+          error: "Order not found."
+        });
+      }
+
+      return res.json({ order: result.rows[0] });
+    } catch (error) {
+      console.error("Customer order detail error:", error.message);
+      return res.status(500).json({
+        error: "Unable to load this order."
+      });
+    }
+  }
+);
 
 // CUSTOMER LOGOUT
 app.post("/api/customer/logout", requireCustomer, (req, res) => {
@@ -984,7 +1376,7 @@ app.post("/api/admin/logout", requireAdmin, (req, res) => {
   });
 });
 
-// CUSTOMER ORDER TRACKING
+// PUBLIC ORDER TRACKING
 app.post("/api/orders/track", trackingLimiter, async (req, res) => {
   try {
     const reference = String(req.body?.reference || "").trim();

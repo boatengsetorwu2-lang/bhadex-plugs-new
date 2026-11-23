@@ -34,11 +34,7 @@ const PRODUCT_PRICES = {
   "Google One": [15, 40, 75]
 };
 
-const PACKAGE_NAMES = [
-  "1 Month",
-  "3 Months",
-  "1 Year"
-];
+const PACKAGE_NAMES = ["1 Month", "3 Months", "1 Year"];
 
 const fulfillmentStatuses = [
   "PENDING",
@@ -82,7 +78,6 @@ function validEmail(email) {
 async function hashCustomerPassword(password) {
   const salt = crypto.randomBytes(16).toString("hex");
   const hash = await scryptAsync(password, salt, 64);
-
   return `${salt}:${hash.toString("hex")}`;
 }
 
@@ -94,9 +89,7 @@ async function verifyCustomerPassword(password, storedHash) {
 
     const [salt, key] = parts;
 
-    if (!salt || !/^[a-f0-9]{128}$/i.test(key)) {
-      return false;
-    }
+    if (!salt || !/^[a-f0-9]{128}$/i.test(key)) return false;
 
     const derivedKey = await scryptAsync(password, salt, 64);
     const storedKey = Buffer.from(key, "hex");
@@ -105,6 +98,75 @@ async function verifyCustomerPassword(password, storedHash) {
   } catch {
     return false;
   }
+}
+
+// OTP HASHING
+function hashOTP(email, code) {
+  return crypto
+    .createHmac("sha256", process.env.SESSION_SECRET)
+    .update(`${email}:${code}`)
+    .digest("hex");
+}
+
+function generateOTP() {
+  return crypto.randomInt(100000, 1000000).toString();
+}
+
+function safeOTPCompare(received, stored) {
+  if (
+    typeof received !== "string" ||
+    typeof stored !== "string" ||
+    !/^\d{6}$/.test(received) ||
+    !/^[a-f0-9]{64}$/i.test(stored)
+  ) {
+    return false;
+  }
+
+  const receivedHash = Buffer.from(
+    hashOTP("", received),
+    "hex"
+  );
+
+  const storedHash = Buffer.from(stored, "hex");
+
+  return receivedHash.length === storedHash.length &&
+    crypto.timingSafeEqual(receivedHash, storedHash);
+}
+
+// EMAIL VERIFICATION OTP
+async function sendEmailVerificationOTP(email, code) {
+  if (!process.env.RESEND_API_KEY || !process.env.RESEND_FROM_EMAIL) {
+    throw new Error("Resend environment variables are missing.");
+  }
+
+  await axios.post(
+    "https://api.resend.com/emails",
+    {
+      from: process.env.RESEND_FROM_EMAIL,
+      to: [email],
+      subject: "Verify Your BHADEX PLUGS Account",
+      html: `
+        <div style="font-family:Arial,sans-serif;max-width:550px;margin:auto;padding:30px;color:#222;">
+          <h2 style="color:#d71920;">BHADEX PLUGS</h2>
+          <h3>Verify your email address</h3>
+          <p>Thank you for creating a BHADEX PLUGS account.</p>
+          <p>Your 6-digit verification code is:</p>
+          <div style="font-size:32px;font-weight:bold;letter-spacing:8px;color:#d71920;padding:15px 0;">
+            ${code}
+          </div>
+          <p>This code expires in 10 minutes.</p>
+          <p>If you did not request this code, you can ignore this email.</p>
+          <p><strong>DIGITAL ACCESS, ELEVATED</strong></p>
+        </div>
+      `
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+        "Content-Type": "application/json"
+      }
+    }
+  );
 }
 
 // AUTOMATIC ORDER CONFIRMATION EMAIL
@@ -158,14 +220,8 @@ async function savePaidOrder(payment, metadata) {
 
   await pool.query(
     `INSERT INTO orders (
-      reference,
-      customer_email,
-      product,
-      package,
-      amount,
-      currency,
-      status,
-      fulfillment_status
+      reference, customer_email, product, package, amount,
+      currency, status, fulfillment_status
     )
     VALUES ($1, $2, $3, $4, $5, 'GHS', 'PAID', 'PENDING')
     ON CONFLICT (reference) DO NOTHING`,
@@ -200,11 +256,7 @@ async function savePaidOrder(payment, metadata) {
     }
 
     await sendOrderConfirmationEmail({
-      reference,
-      email,
-      product,
-      packageName,
-      amount
+      reference, email, product, packageName, amount
     });
 
     await pool.query(
@@ -216,7 +268,6 @@ async function savePaidOrder(payment, metadata) {
     );
 
     console.log("Order confirmation email sent:", reference);
-
   } catch (error) {
     await pool.query(
       `UPDATE orders
@@ -268,6 +319,20 @@ const customerLoginLimiter = rateLimit({
   legacyHeaders: false
 });
 
+const customerVerificationLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+const customerResendLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
 // PAYSTACK WEBHOOK
 app.post(
   "/api/payments/webhook",
@@ -303,7 +368,6 @@ app.post(
       }
 
       const reference = event.data?.reference;
-
       if (!reference) return res.sendStatus(400);
 
       const verification = await axios.get(
@@ -334,15 +398,12 @@ app.post(
       }
 
       await savePaidOrder(payment, metadata);
-
       return res.sendStatus(200);
-
     } catch (error) {
       console.error(
         "Paystack webhook error:",
         error.response?.data || error.message
       );
-
       return res.sendStatus(500);
     }
   }
@@ -351,19 +412,15 @@ app.post(
 // GENERAL MIDDLEWARE
 app.use(express.json({ limit: "10kb" }));
 
-app.use(
-  helmet({
-    contentSecurityPolicy: false
-  })
-);
+app.use(helmet({
+  contentSecurityPolicy: false
+}));
 
 app.use(express.static(path.join(__dirname, "public")));
 
 // ENVIRONMENT CHECKS
 if (!process.env.ADMIN_PASSWORD || !process.env.SESSION_SECRET) {
-  throw new Error(
-    "ADMIN_PASSWORD and SESSION_SECRET must be configured."
-  );
+  throw new Error("ADMIN_PASSWORD and SESSION_SECRET must be configured.");
 }
 
 if (process.env.SESSION_SECRET.length < 32) {
@@ -379,41 +436,35 @@ if (!process.env.BASE_URL) {
 }
 
 // SESSIONS
-app.use(
-  session({
-    store: new PgSession({
-      pool,
-      tableName: "admin_sessions",
-      createTableIfMissing: true
-    }),
-    secret: process.env.SESSION_SECRET,
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      httpOnly: true,
-      secure: "auto",
-      sameSite: "strict",
-      maxAge: 4 * 60 * 60 * 1000
-    }
-  })
-);
+app.use(session({
+  store: new PgSession({
+    pool,
+    tableName: "admin_sessions",
+    createTableIfMissing: true
+  }),
+  secret: process.env.SESSION_SECRET,
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    secure: "auto",
+    sameSite: "strict",
+    maxAge: 4 * 60 * 60 * 1000
+  }
+}));
 
 // ADMIN PASSWORD COMPARISON
 function safePasswordCompare(input, correct) {
   const inputHash = crypto.createHash("sha256").update(input).digest();
   const correctHash = crypto.createHash("sha256").update(correct).digest();
-
   return crypto.timingSafeEqual(inputHash, correctHash);
 }
 
 // ADMIN PROTECTION
 function requireAdmin(req, res, next) {
   if (!req.session || !req.session.isAdmin) {
-    return res.status(401).json({
-      error: "Please log in again."
-    });
+    return res.status(401).json({ error: "Please log in again." });
   }
-
   next();
 }
 
@@ -424,8 +475,39 @@ function requireCustomer(req, res, next) {
       error: "Please log in to your customer account."
     });
   }
-
   next();
+}
+
+// CREATE CUSTOMER SESSION
+function createCustomerSession(req, res, customer) {
+  req.session.regenerate(error => {
+    if (error) {
+      console.error("Customer session error:", error.message);
+      return res.status(500).json({
+        error: "Unable to create your account session."
+      });
+    }
+
+    req.session.customerId = customer.id;
+
+    req.session.save(saveError => {
+      if (saveError) {
+        return res.status(500).json({
+          error: "Unable to save your account session."
+        });
+      }
+
+      return res.json({
+        success: true,
+        message: "Email verified successfully.",
+        customer: {
+          id: customer.id,
+          name: customer.name,
+          email: customer.email
+        }
+      });
+    });
+  });
 }
 
 // CUSTOMER REGISTRATION
@@ -451,58 +533,247 @@ app.post(
         });
       }
 
+      const existing = await pool.query(
+        `SELECT id, email_verified, email_otp_last_sent_at
+         FROM customers
+         WHERE LOWER(email) = $1
+         LIMIT 1`,
+        [email]
+      );
+
+      if (existing.rows.length > 0) {
+        return res.status(409).json({
+          error: existing.rows[0].email_verified
+            ? "An account with this email already exists. Please log in."
+            : "An account with this email is awaiting verification. Please use the resend code option."
+        });
+      }
+
       const passwordHash = await hashCustomerPassword(password);
+      const code = generateOTP();
+      const otpHash = hashOTP(email, code);
 
       const result = await pool.query(
-        `INSERT INTO customers (name, email, password_hash)
-         VALUES ($1, $2, $3)
-         ON CONFLICT DO NOTHING
-         RETURNING id, name, email, created_at`,
-        [name, email, passwordHash]
+        `INSERT INTO customers (
+          name, email, password_hash, email_verified,
+          email_otp_hash, email_otp_expires_at,
+          email_otp_attempts, email_otp_last_sent_at
+        )
+        VALUES ($1, $2, $3, FALSE, $4, NOW() + INTERVAL '10 minutes', 0, NOW())
+        RETURNING id, name, email`,
+        [name, email, passwordHash, otpHash]
+      );
+
+      try {
+        await sendEmailVerificationOTP(email, code);
+      } catch (emailError) {
+        await pool.query(
+          `DELETE FROM customers
+           WHERE id = $1 AND email_verified = FALSE`,
+          [result.rows[0].id]
+        );
+
+        console.error(
+          "Verification email error:",
+          emailError.response?.data || emailError.message
+        );
+
+        return res.status(503).json({
+          error: "We could not send your verification email. Please try registering again later."
+        });
+      }
+
+      return res.status(201).json({
+        success: true,
+        message: "A verification code has been sent to your email.",
+        email
+      });
+    } catch (error) {
+      console.error("Customer registration error:", error.message);
+      return res.status(500).json({
+        error: "Unable to create your account."
+      });
+    }
+  }
+);
+
+// VERIFY CUSTOMER EMAIL
+app.post(
+  "/api/customer/verify-email",
+  customerVerificationLimiter,
+  async (req, res) => {
+    try {
+      const email = String(req.body?.email || "").trim().toLowerCase();
+      const code = String(req.body?.code || "").trim();
+
+      if (!validEmail(email) || !/^\d{6}$/.test(code)) {
+        return res.status(400).json({
+          error: "Enter a valid email and 6-digit verification code."
+        });
+      }
+
+      const result = await pool.query(
+        `SELECT id, name, email, email_otp_hash,
+                email_otp_expires_at, email_otp_attempts,
+                email_verified
+         FROM customers
+         WHERE LOWER(email) = $1
+         LIMIT 1`,
+        [email]
       );
 
       if (result.rows.length === 0) {
-        return res.status(409).json({
-          error: "An account with this email may already exist. Try logging in."
+        return res.status(400).json({
+          error: "Invalid or expired verification code."
         });
       }
 
       const customer = result.rows[0];
 
-      req.session.regenerate(error => {
-        if (error) {
-          console.error("Customer session error:", error.message);
-          return res.status(500).json({
-            error: "Unable to create your account session."
-          });
-        }
-
-        req.session.customerId = customer.id;
-
-        req.session.save(saveError => {
-          if (saveError) {
-            return res.status(500).json({
-              error: "Unable to save your account session."
-            });
-          }
-
-          return res.status(201).json({
-            success: true,
-            message: "Your account has been created.",
-            customer: {
-              id: customer.id,
-              name: customer.name,
-              email: customer.email
-            }
-          });
+      if (customer.email_verified) {
+        return res.status(400).json({
+          error: "This email is already verified. Please log in."
         });
-      });
+      }
 
+      if (
+        !customer.email_otp_hash ||
+        !customer.email_otp_expires_at ||
+        new Date(customer.email_otp_expires_at) <= new Date()
+      ) {
+        return res.status(400).json({
+          error: "Your code has expired. Please request a new one."
+        });
+      }
+
+      if (customer.email_otp_attempts >= 5) {
+        return res.status(429).json({
+          error: "Too many incorrect attempts. Please request a new code."
+        });
+      }
+
+      const isValid = crypto.timingSafeEqual(
+        Buffer.from(hashOTP(email, code), "hex"),
+        Buffer.from(customer.email_otp_hash, "hex")
+      );
+
+      if (!isValid) {
+        await pool.query(
+          `UPDATE customers
+           SET email_otp_attempts = email_otp_attempts + 1
+           WHERE id = $1`,
+          [customer.id]
+        );
+
+        return res.status(400).json({
+          error: "Incorrect verification code."
+        });
+      }
+
+      const update = await pool.query(
+        `UPDATE customers
+         SET email_verified = TRUE,
+             email_otp_hash = NULL,
+             email_otp_expires_at = NULL,
+             email_otp_attempts = 0
+         WHERE id = $1 AND email_verified = FALSE
+         RETURNING id, name, email`,
+        [customer.id]
+      );
+
+      if (update.rows.length === 0) {
+        return res.status(400).json({
+          error: "Unable to verify this account. Please try logging in."
+        });
+      }
+
+      return createCustomerSession(req, res, update.rows[0]);
     } catch (error) {
-      console.error("Customer registration error:", error.message);
-
+      console.error("Email verification error:", error.message);
       return res.status(500).json({
-        error: "Unable to create your account."
+        error: "Unable to verify your email right now."
+      });
+    }
+  }
+);
+
+// RESEND VERIFICATION CODE
+app.post(
+  "/api/customer/resend-otp",
+  customerResendLimiter,
+  async (req, res) => {
+    try {
+      const email = String(req.body?.email || "").trim().toLowerCase();
+
+      if (!validEmail(email)) {
+        return res.status(400).json({
+          error: "Enter a valid email address."
+        });
+      }
+
+      const result = await pool.query(
+        `SELECT id, email_verified, email_otp_last_sent_at
+         FROM customers
+         WHERE LOWER(email) = $1
+         LIMIT 1`,
+        [email]
+      );
+
+      if (
+        result.rows.length === 0 ||
+        result.rows[0].email_verified
+      ) {
+        return res.json({
+          success: true,
+          message: "If this account needs verification, a new code will be sent."
+        });
+      }
+
+      const customer = result.rows[0];
+
+      if (
+        customer.email_otp_last_sent_at &&
+        Date.now() - new Date(customer.email_otp_last_sent_at).getTime() < 60000
+      ) {
+        return res.status(429).json({
+          error: "Please wait 60 seconds before requesting another code."
+        });
+      }
+
+      const code = generateOTP();
+      const otpHash = hashOTP(email, code);
+
+      await pool.query(
+        `UPDATE customers
+         SET email_otp_hash = $1,
+             email_otp_expires_at = NOW() + INTERVAL '10 minutes',
+             email_otp_attempts = 0,
+             email_otp_last_sent_at = NOW()
+         WHERE id = $2`,
+        [otpHash, customer.id]
+      );
+
+      try {
+        await sendEmailVerificationOTP(email, code);
+      } catch (emailError) {
+        console.error(
+          "Resend verification error:",
+          emailError.response?.data || emailError.message
+        );
+
+        return res.status(503).json({
+          error: "Unable to send a new code. Please try again later."
+        });
+      }
+
+      return res.json({
+        success: true,
+        message: "A new verification code has been sent."
+      });
+    } catch (error) {
+      console.error("Resend OTP error:", error.message);
+      return res.status(500).json({
+        error: "Unable to resend your verification code."
       });
     }
   }
@@ -528,7 +799,7 @@ app.post(
       }
 
       const result = await pool.query(
-        `SELECT id, name, email, password_hash
+        `SELECT id, name, email, password_hash, email_verified
          FROM customers
          WHERE LOWER(email) = $1
          LIMIT 1`,
@@ -549,38 +820,16 @@ app.post(
 
       const customer = result.rows[0];
 
-      req.session.regenerate(error => {
-        if (error) {
-          console.error("Customer login session error:", error.message);
-          return res.status(500).json({
-            error: "Unable to create your login session."
-          });
-        }
-
-        req.session.customerId = customer.id;
-
-        req.session.save(saveError => {
-          if (saveError) {
-            return res.status(500).json({
-              error: "Unable to save your login session."
-            });
-          }
-
-          return res.json({
-            success: true,
-            message: "Login successful.",
-            customer: {
-              id: customer.id,
-              name: customer.name,
-              email: customer.email
-            }
-          });
+      if (!customer.email_verified) {
+        return res.status(403).json({
+          error: "Please verify your email before logging in.",
+          verificationRequired: true
         });
-      });
+      }
 
+      return createCustomerSession(req, res, customer);
     } catch (error) {
       console.error("Customer login error:", error.message);
-
       return res.status(500).json({
         error: "Unable to log in right now."
       });
@@ -615,10 +864,8 @@ app.get("/api/customer/me", requireCustomer, async (req, res) => {
         createdAt: customer.created_at
       }
     });
-
   } catch (error) {
     console.error("Customer account error:", error.message);
-
     return res.status(500).json({
       error: "Unable to load your account."
     });
@@ -629,10 +876,7 @@ app.get("/api/customer/me", requireCustomer, async (req, res) => {
 app.get("/api/customer/orders", requireCustomer, async (req, res) => {
   try {
     const customerResult = await pool.query(
-      `SELECT email
-       FROM customers
-       WHERE id = $1
-       LIMIT 1`,
+      `SELECT email FROM customers WHERE id = $1 LIMIT 1`,
       [req.session.customerId]
     );
 
@@ -646,15 +890,8 @@ app.get("/api/customer/orders", requireCustomer, async (req, res) => {
 
     const result = await pool.query(
       `SELECT
-        reference,
-        product,
-        package,
-        amount,
-        currency,
-        status,
-        fulfillment_status,
-        created_at,
-        delivered_at
+        reference, product, package, amount, currency, status,
+        fulfillment_status, created_at, delivered_at
        FROM orders
        WHERE LOWER(customer_email) = $1
        ORDER BY created_at DESC
@@ -662,13 +899,9 @@ app.get("/api/customer/orders", requireCustomer, async (req, res) => {
       [email]
     );
 
-    return res.json({
-      orders: result.rows
-    });
-
+    return res.json({ orders: result.rows });
   } catch (error) {
     console.error("Customer orders error:", error.message);
-
     return res.status(500).json({
       error: "Unable to load your orders."
     });
@@ -685,7 +918,6 @@ app.post("/api/customer/logout", requireCustomer, (req, res) => {
     }
 
     res.clearCookie("connect.sid");
-
     return res.json({
       success: true,
       message: "You have logged out."
@@ -730,7 +962,6 @@ app.post("/api/admin/login", loginLimiter, async (req, res) => {
         });
       });
     });
-
   } catch (error) {
     console.error("Admin login error:", error.message);
     return res.status(500).json({
@@ -759,11 +990,7 @@ app.post("/api/orders/track", trackingLimiter, async (req, res) => {
     const reference = String(req.body?.reference || "").trim();
     const email = String(req.body?.email || "").trim().toLowerCase();
 
-    if (
-      !reference ||
-      reference.length > 100 ||
-      !validEmail(email)
-    ) {
+    if (!reference || reference.length > 100 || !validEmail(email)) {
       return res.status(400).json({
         error: "Enter a valid order reference and email address."
       });
@@ -771,15 +998,8 @@ app.post("/api/orders/track", trackingLimiter, async (req, res) => {
 
     const result = await pool.query(
       `SELECT
-        reference,
-        product,
-        package,
-        amount,
-        currency,
-        status,
-        fulfillment_status,
-        created_at,
-        delivered_at
+        reference, product, package, amount, currency, status,
+        fulfillment_status, created_at, delivered_at
        FROM orders
        WHERE reference = $1
        AND LOWER(customer_email) = $2
@@ -808,7 +1028,6 @@ app.post("/api/orders/track", trackingLimiter, async (req, res) => {
         deliveredAt: order.delivered_at
       }
     });
-
   } catch (error) {
     console.error("Order tracking error:", error.message);
     return res.status(500).json({
@@ -834,7 +1053,6 @@ app.get("/api/admin/orders", requireAdmin, async (req, res) => {
     if (search) {
       values.push(`%${search}%`);
       const index = values.length;
-
       conditions.push(
         `(reference ILIKE $${index}
           OR customer_email ILIKE $${index}
@@ -871,7 +1089,6 @@ app.get("/api/admin/orders", requireAdmin, async (req, res) => {
       orders: ordersResult.rows,
       stats: statsResult.rows[0]
     });
-
   } catch (error) {
     console.error("Admin orders error:", error.message);
     return res.status(500).json({
@@ -928,7 +1145,6 @@ app.patch(
         success: true,
         order: result.rows[0]
       });
-
     } catch (error) {
       console.error("Delivery update error:", error.message);
       return res.status(500).json({
@@ -961,7 +1177,6 @@ app.post(
 
       const amount = PRODUCT_PRICES[product][packageIndex];
       const packageName = PACKAGE_NAMES[packageIndex];
-
       const baseUrl = process.env.BASE_URL.replace(/\/+$/, "");
 
       const response = await axios.post(
@@ -985,13 +1200,11 @@ app.post(
       );
 
       return res.json(response.data.data);
-
     } catch (error) {
       console.error(
         "Payment initialization error:",
         error.response?.data || error.message
       );
-
       return res.status(500).json({
         error: "Unable to initialize payment."
       });
@@ -1045,13 +1258,11 @@ app.get("/api/payments/verify/:reference", async (req, res) => {
       reference: payment.reference,
       status: payment.status
     });
-
   } catch (error) {
     console.error(
       "Payment verification error:",
       error.response?.data || error.message
     );
-
     return res.status(500).json({
       error: "Unable to verify payment."
     });
@@ -1072,11 +1283,8 @@ async function startServer() {
     `);
 
     app.listen(PORT, () => {
-      console.log(
-        `BHADEX PLUGS server running on port ${PORT}`
-      );
+      console.log(`BHADEX PLUGS server running on port ${PORT}`);
     });
-
   } catch (error) {
     console.error("Server startup error:", error);
     process.exit(1);

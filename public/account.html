@@ -5,184 +5,677 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#080808">
-  <title>My Account | BHADEX PLUGS</title>
+  <title>Customer Dashboard | BHADEX PLUGS</title>
   <link rel="stylesheet" href="styles.css">
+
   <style>
-    .account-container {
-      width: min(900px, 92%);
-      margin: 45px auto;
+    * { box-sizing: border-box; }
+
+    body { background: #080808; }
+
+    .dashboard {
+      width: min(1100px, 94%);
+      margin: 35px auto;
     }
-    .account-card {
+
+    .welcome {
+      margin-bottom: 25px;
+    }
+
+    .welcome p { color: #aaa; }
+
+    .dashboard-nav {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin: 25px 0;
+    }
+
+    .dashboard-nav a {
+      color: #ddd;
+      text-decoration: none;
+      background: #151515;
+      border: 1px solid #292929;
+      padding: 11px 16px;
+      border-radius: 7px;
+      font-size: 14px;
+    }
+
+    .dashboard-nav a:hover {
+      background: #d71920;
+      color: white;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 15px;
+      margin-bottom: 25px;
+    }
+
+    .summary-card {
       background: #111;
       border: 1px solid #292929;
+      padding: 20px;
       border-radius: 12px;
+    }
+
+    .summary-card p {
+      color: #aaa;
+      margin-bottom: 8px;
+    }
+
+    .summary-card h2 {
+      margin: 0;
+      font-size: 27px;
+    }
+
+    .dashboard-card {
+      background: #111;
+      border: 1px solid #292929;
       padding: 24px;
+      border-radius: 12px;
       margin-bottom: 22px;
+      scroll-margin-top: 25px;
     }
-    .account-card h2 { margin-top: 0; }
+
+    .dashboard-card h2 {
+      margin-top: 0;
+    }
+
     .muted { color: #aaa; }
-    .order {
-      border-top: 1px solid #333;
-      padding: 17px 0;
+
+    .form-group { margin: 16px 0; }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
     }
-    .order:first-of-type { border-top: 0; }
-    .order strong { color: white; }
-    .status { color: #4ade80; }
+
+    .form-group input {
+      width: 100%;
+      padding: 13px;
+      background: #080808;
+      border: 1px solid #393939;
+      border-radius: 7px;
+      color: white;
+    }
+
+    .primary-button {
+      background: #d71920;
+      color: white;
+      border: 0;
+      padding: 12px 20px;
+      border-radius: 7px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    .primary-button:disabled {
+      opacity: .6;
+      cursor: not-allowed;
+    }
+
+    .secondary-button {
+      background: #242424;
+      color: white;
+      border: 1px solid #444;
+      padding: 10px 16px;
+      border-radius: 7px;
+      cursor: pointer;
+    }
+
     .logout-button {
       background: #d71920;
       color: white;
       border: 0;
-      padding: 11px 20px;
+      padding: 12px 20px;
       border-radius: 7px;
       cursor: pointer;
     }
-    #message { color: #ff7777; }
+
+    .order {
+      border-top: 1px solid #333;
+      padding: 18px 0;
+    }
+
+    .order:first-child { border-top: 0; }
+
+    .order p { margin: 8px 0; }
+
+    .status {
+      color: #4ade80;
+    }
+
+    .support-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .support-links a {
+      color: #ff7777;
+      text-decoration: none;
+      background: #1b1b1b;
+      padding: 12px 16px;
+      border-radius: 7px;
+    }
+
+    .support-links a:hover {
+      background: #292929;
+    }
+
+    .message {
+      margin-top: 14px;
+      font-size: 14px;
+      color: #ff7777;
+    }
+
+    .success { color: #4ade80; }
+
+    .reference {
+      color: #aaa;
+      font-size: 13px;
+      overflow-wrap: anywhere;
+    }
+
+    @media (max-width: 700px) {
+      .summary-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .dashboard-card { padding: 18px; }
+
+      .dashboard-nav a {
+        flex: 1 1 40%;
+        text-align: center;
+      }
+    }
   </style>
 </head>
+
 <body>
 
 <header class="topbar">
   <a class="brand" href="index.html">BHADEX PLUGS</a>
 </header>
 
-<main class="account-container">
-  <h1>My Account</h1>
-  <p class="muted">Manage your profile and view your orders.</p>
+<main class="dashboard">
 
-  <section class="account-card">
-    <h2>Profile Information</h2>
-    <p><strong>Name:</strong> <span id="customerName">Loading...</span></p>
-    <p><strong>Email:</strong> <span id="customerEmail">Loading...</span></p>
-    <button class="logout-button" id="logoutButton">Logout</button>
+  <section class="welcome">
+    <h1>Customer Dashboard</h1>
+    <p>Welcome back, <strong id="welcomeName">Customer</strong>.</p>
+    <p class="muted">Manage your purchases, profile and account security.</p>
   </section>
 
-  <section class="account-card">
+  <nav class="dashboard-nav">
+    <a href="#overview">Overview</a>
+    <a href="#track">Track Order</a>
+    <a href="#orders">My Orders</a>
+    <a href="#profile">My Profile</a>
+    <a href="#security">Security</a>
+    <a href="#support">Support</a>
+  </nav>
+
+  <!-- OVERVIEW -->
+  <section id="overview">
+    <div class="summary-grid">
+      <div class="summary-card">
+        <p>Total Orders</p>
+        <h2 id="totalOrders">0</h2>
+      </div>
+
+      <div class="summary-card">
+        <p>Pending</p>
+        <h2 id="pendingOrders">0</h2>
+      </div>
+
+      <div class="summary-card">
+        <p>Processing</p>
+        <h2 id="processingOrders">0</h2>
+      </div>
+
+      <div class="summary-card">
+        <p>Delivered</p>
+        <h2 id="deliveredOrders">0</h2>
+      </div>
+    </div>
+  </section>
+
+  <!-- TRACK ORDER -->
+  <section class="dashboard-card" id="track">
+    <h2>Track Your Order</h2>
+    <p class="muted">
+      Enter your order reference to check its payment and delivery status.
+    </p>
+
+    <form id="trackForm">
+      <div class="form-group">
+        <label for="trackReference">Order Reference</label>
+        <input
+          id="trackReference"
+          type="text"
+          placeholder="Enter your order reference"
+          required
+        >
+      </div>
+
+      <button class="primary-button" type="submit" id="trackButton">
+        Track Order
+      </button>
+    </form>
+
+    <div id="trackResult" class="message" role="status"></div>
+  </section>
+
+  <!-- MY ORDERS -->
+  <section class="dashboard-card" id="orders">
     <h2>My Orders</h2>
-    <div id="orders">
+    <p class="muted">View your purchase history and delivery progress.</p>
+
+    <div id="ordersList">
       <p class="muted">Loading your orders...</p>
     </div>
   </section>
 
-  <p id="message" role="status"></p>
+  <!-- PROFILE -->
+  <section class="dashboard-card" id="profile">
+    <h2>My Profile</h2>
+    <p class="muted">View and update your account information.</p>
+
+    <form id="profileForm">
+      <div class="form-group">
+        <label for="profileName">Full Name</label>
+        <input id="profileName" type="text" required maxlength="100">
+      </div>
+
+      <div class="form-group">
+        <label for="profileEmail">Email Address</label>
+        <input id="profileEmail" type="email" disabled>
+      </div>
+
+      <button class="primary-button" type="submit" id="profileButton">
+        Save Changes
+      </button>
+    </form>
+
+    <div id="profileMessage" class="message" role="status"></div>
+  </section>
+
+  <!-- SECURITY -->
+  <section class="dashboard-card" id="security">
+    <h2>Account Security</h2>
+    <p class="muted">Change your account password.</p>
+
+    <form id="passwordForm">
+      <div class="form-group">
+        <label for="currentPassword">Current Password</label>
+        <input id="currentPassword" type="password" required>
+      </div>
+
+      <div class="form-group">
+        <label for="newPassword">New Password</label>
+        <input id="newPassword" type="password" minlength="10" maxlength="128" required>
+      </div>
+
+      <div class="form-group">
+        <label for="confirmPassword">Confirm New Password</label>
+        <input id="confirmPassword" type="password" minlength="10" maxlength="128" required>
+      </div>
+
+      <button class="primary-button" type="submit" id="passwordButton">
+        Change Password
+      </button>
+    </form>
+
+    <div id="passwordMessage" class="message" role="status"></div>
+  </section>
+
+  <!-- SUPPORT -->
+  <section class="dashboard-card" id="support">
+    <h2>Customer Support</h2>
+    <p class="muted">
+      Need help with a purchase or have a question? Contact our support team.
+    </p>
+
+    <div class="support-links">
+      <a href="mailto:bhadexplugs@gmail.com">
+        Email Support
+      </a>
+
+      <a href="https://wa.me/233552817566" target="_blank" rel="noopener noreferrer">
+        WhatsApp Support
+      </a>
+    </div>
+  </section>
+
+  <!-- LOGOUT -->
+  <section class="dashboard-card">
+    <h2>Sign Out</h2>
+    <p class="muted">Sign out of your BHADEX PLUGS customer account.</p>
+
+    <button class="logout-button" id="logoutButton">
+      Logout
+    </button>
+
+    <div id="message" class="message" role="status"></div>
+  </section>
+
 </main>
 
 <script>
-const customerName = document.getElementById("customerName");
-const customerEmail = document.getElementById("customerEmail");
-const ordersContainer = document.getElementById("orders");
-const message = document.getElementById("message");
+const welcomeName = document.getElementById("welcomeName");
+const profileName = document.getElementById("profileName");
+const profileEmail = document.getElementById("profileEmail");
+const ordersList = document.getElementById("ordersList");
 
+let customerOrders = [];
+
+function showMessage(elementId, text, success = false) {
+  const element = document.getElementById(elementId);
+  element.textContent = text;
+  element.className = success ? "message success" : "message";
+}
+
+async function apiRequest(url, options = {}) {
+  const response = await fetch(url, {
+    ...options,
+    credentials: "same-origin",
+    headers: {
+      ...(options.headers || {})
+    }
+  });
+
+  if (response.status === 401) {
+    window.location.href = "login.html";
+    throw new Error("Please log in again.");
+  }
+
+  const result = await response.json();
+
+  if (!response.ok) {
+    throw new Error(result.error || "Something went wrong.");
+  }
+
+  return result;
+}
+
+// LOAD CUSTOMER ACCOUNT
 async function loadAccount() {
   try {
-    const response = await fetch("/api/customer/me", {
-      credentials: "same-origin"
-    });
+    const result = await apiRequest("/api/customer/me");
 
-    if (response.status === 401) {
-      window.location.href = "login.html";
-      return;
-    }
+    const customer = result.customer;
 
-    const result = await response.json();
-
-    if (!response.ok) {
-      throw new Error(result.error || "Could not load account.");
-    }
-
-    customerName.textContent = result.customer.name;
-    customerEmail.textContent = result.customer.email;
+    welcomeName.textContent = customer.name || "Customer";
+    profileName.value = customer.name || "";
+    profileEmail.value = customer.email || "";
 
     await loadOrders();
 
   } catch (error) {
-    message.textContent = error.message;
+    showMessage("message", error.message);
   }
 }
 
+// LOAD ORDERS
 async function loadOrders() {
   try {
-    const response = await fetch("/api/customer/orders", {
-      credentials: "same-origin"
-    });
+    const result = await apiRequest("/api/customer/orders");
 
-    if (response.status === 401) {
-      window.location.href = "login.html";
-      return;
-    }
+    customerOrders = result.orders || [];
 
-    const result = await response.json();
-
-    if (!response.ok) {
-      throw new Error(result.error || "Could not load orders.");
-    }
-
-    const orders = result.orders || [];
-
-    if (orders.length === 0) {
-      ordersContainer.innerHTML =
-        '<p class="muted">You have no orders yet.</p>';
-      return;
-    }
-
-    ordersContainer.innerHTML = "";
-
-    orders.forEach(order => {
-      const item = document.createElement("div");
-      item.className = "order";
-
-      const product = document.createElement("p");
-      const productLabel = document.createElement("strong");
-      productLabel.textContent = "Product: ";
-      product.append(productLabel, document.createTextNode(order.product || ""));
-
-      const packageLine = document.createElement("p");
-      packageLine.textContent = "Package: " + (order.package || "");
-
-      const amountLine = document.createElement("p");
-      amountLine.textContent = "Amount: GHS " + Number(order.amount).toFixed(2);
-
-      const paymentLine = document.createElement("p");
-      paymentLine.textContent = "Payment: " + (order.status || "Unknown");
-
-      const deliveryLine = document.createElement("p");
-      deliveryLine.textContent =
-        "Delivery: " + (order.fulfillment_status || "Pending");
-      deliveryLine.className = "status";
-
-      const referenceLine = document.createElement("p");
-      referenceLine.className = "muted";
-      referenceLine.textContent = "Reference: " + (order.reference || "");
-
-      item.append(
-        product, packageLine, amountLine,
-        paymentLine, deliveryLine, referenceLine
-      );
-
-      ordersContainer.appendChild(item);
-    });
+    updateStatistics();
+    displayOrders();
 
   } catch (error) {
-    ordersContainer.textContent = error.message;
+    ordersList.textContent = error.message;
   }
 }
 
-document.getElementById("logoutButton").addEventListener("click", async () => {
-  try {
-    const response = await fetch("/api/customer/logout", {
-      method: "POST",
-      credentials: "same-origin"
-    });
+// UPDATE DASHBOARD STATISTICS
+function updateStatistics() {
+  const total = customerOrders.length;
 
-    if (!response.ok) {
-      throw new Error("Logout failed. Please try again.");
+  const pending = customerOrders.filter(order =>
+    String(order.fulfillment_status || "pending").toLowerCase() === "pending"
+  ).length;
+
+  const processing = customerOrders.filter(order =>
+    ["processing", "in progress"].includes(
+      String(order.fulfillment_status || "").toLowerCase()
+    )
+  ).length;
+
+  const delivered = customerOrders.filter(order =>
+    String(order.fulfillment_status || "").toLowerCase() === "delivered"
+  ).length;
+
+  document.getElementById("totalOrders").textContent = total;
+  document.getElementById("pendingOrders").textContent = pending;
+  document.getElementById("processingOrders").textContent = processing;
+  document.getElementById("deliveredOrders").textContent = delivered;
+}
+
+// CREATE ORDER DISPLAY
+function createOrderElement(order) {
+  const item = document.createElement("div");
+  item.className = "order";
+
+  const fields = [
+    ["Product", order.product || ""],
+    ["Package", order.package || ""],
+    ["Amount", "GHS " + Number(order.amount || 0).toFixed(2)],
+    ["Payment", order.status || "Unknown"],
+    ["Delivery", order.fulfillment_status || "Pending"]
+  ];
+
+  fields.forEach(([label, value]) => {
+    const paragraph = document.createElement("p");
+    const strong = document.createElement("strong");
+
+    strong.textContent = label + ": ";
+    paragraph.append(strong, document.createTextNode(String(value)));
+
+    if (label === "Delivery") {
+      paragraph.className = "status";
     }
 
-    window.location.href = "login.html";
+    item.appendChild(paragraph);
+  });
+
+  const reference = document.createElement("p");
+  reference.className = "reference";
+  reference.textContent = "Reference: " + (order.reference || "");
+  item.appendChild(reference);
+
+  const trackButton = document.createElement("button");
+  trackButton.className = "secondary-button";
+  trackButton.textContent = "Track This Order";
+
+  trackButton.addEventListener("click", () => {
+    document.getElementById("trackReference").value = order.reference || "";
+    document.getElementById("track").scrollIntoView({ behavior: "smooth" });
+    if (order.reference) trackOrder(order.reference);
+  });
+
+  item.appendChild(trackButton);
+
+  return item;
+}
+
+// DISPLAY CUSTOMER ORDERS
+function displayOrders() {
+  ordersList.replaceChildren();
+
+  if (customerOrders.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "You have no orders yet.";
+    ordersList.appendChild(empty);
+    return;
+  }
+
+  customerOrders.forEach(order => {
+    ordersList.appendChild(createOrderElement(order));
+  });
+}
+
+// TRACK A CUSTOMER'S OWN ORDER
+async function trackOrder(reference) {
+  const resultBox = document.getElementById("trackResult");
+
+  resultBox.textContent = "Checking your order...";
+
+  try {
+    const result = await apiRequest(
+      "/api/customer/orders/" + encodeURIComponent(reference)
+    );
+
+    const order = result.order || result;
+
+    resultBox.replaceChildren();
+
+    const details = [
+      ["Product", order.product],
+      ["Package", order.package],
+      ["Amount", "GHS " + Number(order.amount || 0).toFixed(2)],
+      ["Payment", order.status || "Unknown"],
+      ["Delivery", order.fulfillment_status || "Pending"],
+      ["Reference", order.reference || reference]
+    ];
+
+    details.forEach(([label, value]) => {
+      const paragraph = document.createElement("p");
+      paragraph.textContent = label + ": " + (value || "Not available");
+      resultBox.appendChild(paragraph);
+    });
+
+    resultBox.className = "message success";
+
   } catch (error) {
-    message.textContent = error.message;
+    resultBox.textContent = error.message;
+    resultBox.className = "message";
+  }
+}
+
+document.getElementById("trackForm").addEventListener("submit", async event => {
+  event.preventDefault();
+
+  const reference = document.getElementById("trackReference").value.trim();
+
+  if (!reference) return;
+
+  const button = document.getElementById("trackButton");
+  button.disabled = true;
+  button.textContent = "Checking...";
+
+  await trackOrder(reference);
+
+  button.disabled = false;
+  button.textContent = "Track Order";
+});
+
+// UPDATE PROFILE
+document.getElementById("profileForm").addEventListener("submit", async event => {
+  event.preventDefault();
+
+  const button = document.getElementById("profileButton");
+  const name = profileName.value.trim();
+
+  if (!name) {
+    showMessage("profileMessage", "Please enter your name.");
+    return;
+  }
+
+  button.disabled = true;
+  button.textContent = "Saving...";
+
+  try {
+    const result = await apiRequest("/api/customer/profile", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name })
+    });
+
+    const updatedName = result.customer?.name || name;
+
+    profileName.value = updatedName;
+    welcomeName.textContent = updatedName;
+
+    showMessage("profileMessage", "Profile updated successfully.", true);
+
+  } catch (error) {
+    showMessage("profileMessage", error.message);
+  } finally {
+    button.disabled = false;
+    button.textContent = "Save Changes";
   }
 });
 
+// CHANGE PASSWORD
+document.getElementById("passwordForm").addEventListener("submit", async event => {
+  event.preventDefault();
+
+  const currentPassword = document.getElementById("currentPassword").value;
+  const newPassword = document.getElementById("newPassword").value;
+  const confirmPassword = document.getElementById("confirmPassword").value;
+
+  if (newPassword.length < 10) {
+    showMessage("passwordMessage", "Your new password must have at least 10 characters.");
+    return;
+  }
+
+  if (newPassword !== confirmPassword) {
+    showMessage("passwordMessage", "Your new passwords do not match.");
+    return;
+  }
+
+  const button = document.getElementById("passwordButton");
+  button.disabled = true;
+  button.textContent = "Updating...";
+
+  try {
+    await apiRequest("/api/customer/change-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ currentPassword, newPassword })
+    });
+
+    document.getElementById("passwordForm").reset();
+
+    showMessage("passwordMessage", "Password changed successfully.", true);
+
+  } catch (error) {
+    showMessage("passwordMessage", error.message);
+  } finally {
+    button.disabled = false;
+    button.textContent = "Change Password";
+  }
+});
+
+// LOGOUT
+document.getElementById("logoutButton").addEventListener("click", async () => {
+  const button = document.getElementById("logoutButton");
+
+  button.disabled = true;
+  button.textContent = "Logging out...";
+
+  try {
+    await apiRequest("/api/customer/logout", {
+      method: "POST"
+    });
+
+    window.location.href = "login.html";
+
+  } catch (error) {
+    showMessage("message", error.message);
+    button.disabled = false;
+    button.textContent = "Logout";
+  }
+});
+
+// START DASHBOARD
 loadAccount();
 </script>
 

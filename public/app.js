@@ -2,129 +2,83 @@
 const products = [
   {
     name: "Netflix",
+    logo: "https://cdn.simpleicons.org/netflix/E50914",
     category: "Entertainment",
     prices: [35, 90, 170],
     description: "Enjoy movies, TV shows and award-winning Netflix Originals.",
-    benefits: [
-      "Access to movies and TV series",
-      "Netflix Original productions",
-      "Downloads where supported",
-      "Streaming quality based on your plan"
-    ]
+    benefits: ["Access to movies and TV series", "Netflix Original productions", "Downloads where supported", "Streaming quality based on your plan"]
   },
   {
     name: "YouTube Premium",
+    logo: "https://cdn.simpleicons.org/youtube/FF0000",
     category: "Entertainment",
     prices: [20, 55, 100],
     description: "Enjoy YouTube with fewer interruptions and extra playback features.",
-    benefits: [
-      "Ad-free YouTube viewing",
-      "Background play",
-      "Offline downloads",
-      "YouTube Music Premium benefits"
-    ]
+    benefits: ["Ad-free YouTube viewing", "Background play", "Offline downloads", "YouTube Music Premium benefits"]
   },
   {
     name: "Spotify Premium",
+    logo: "https://cdn.simpleicons.org/spotify/1DB954",
     category: "Entertainment",
     prices: [18, 50, 95],
     description: "Enjoy your favourite music with Premium listening features.",
-    benefits: [
-      "Ad-free music listening",
-      "Offline listening",
-      "On-demand song selection",
-      "Higher audio quality options"
-    ]
+    benefits: ["Ad-free music listening", "Offline listening", "On-demand song selection", "Higher audio quality options"]
   },
   {
     name: "Canva Pro",
+    logo: "https://cdn.simpleicons.org/canva/00C4CC",
     category: "Productivity",
     prices: [25, 70, 135],
     description: "Create professional designs with Canva's premium creative tools.",
-    benefits: [
-      "Premium templates",
-      "Background remover",
-      "Premium photos and graphics",
-      "Design resizing tools",
-      "AI design features"
-    ]
+    benefits: ["Premium templates", "Background remover", "Premium photos and graphics", "Design resizing tools", "AI design features"]
   },
   {
     name: "ChatGPT Plus",
+    logo: "https://cdn.simpleicons.org/openai/FFFFFF",
     category: "Productivity",
     prices: [45],
     description: "Get access to additional ChatGPT capabilities and higher usage limits.",
-    benefits: [
-      "Access to advanced AI capabilities",
-      "Higher usage limits",
-      "Image generation",
-      "Document and file analysis",
-      "Advanced research tools"
-    ]
+    benefits: ["Access to advanced AI capabilities", "Higher usage limits", "Image generation", "Document and file analysis", "Advanced research tools"]
   },
   {
     name: "Microsoft 365",
+    logo: "https://cdn.simpleicons.org/microsoft/5E5E5E",
     category: "Productivity",
     prices: [30, 85, 160],
     description: "Work smarter with Microsoft's productivity applications.",
-    benefits: [
-      "Word, Excel and PowerPoint features",
-      "OneDrive cloud storage",
-      "File syncing",
-      "Collaboration tools"
-    ]
+    benefits: ["Word, Excel and PowerPoint features", "OneDrive cloud storage", "File syncing", "Collaboration tools"]
   },
   {
     name: "Disney+",
+    logo: "https://cdn.simpleicons.org/disneyplus/113CCF",
     category: "Entertainment",
     prices: [25, 70, 135],
     description: "Stream entertainment from Disney and its popular brands.",
-    benefits: [
-      "Disney movies and series",
-      "Marvel entertainment",
-      "Star Wars content",
-      "Pixar movies",
-      "Downloads where supported"
-    ]
+    benefits: ["Disney movies and series", "Marvel entertainment", "Star Wars content", "Pixar movies", "Downloads where supported"]
   },
   {
     name: "Prime Video",
+    logo: "https://cdn.simpleicons.org/primevideo/00A8E1",
     category: "Entertainment",
     prices: [20, 55, 105],
     description: "Explore movies, television shows and Amazon Originals.",
-    benefits: [
-      "Movies and TV shows",
-      "Amazon Original productions",
-      "Supported high-quality streaming",
-      "Downloads where supported"
-    ]
+    benefits: ["Movies and TV shows", "Amazon Original productions", "Supported high-quality streaming", "Downloads where supported"]
   },
   {
     name: "Telegram Premium",
+    logo: "https://cdn.simpleicons.org/telegram/26A5E4",
     category: "Social",
     prices: [20, 55, 105],
     description: "Unlock additional features for your Telegram experience.",
-    benefits: [
-      "Faster downloads",
-      "Increased upload limits",
-      "Premium stickers and reactions",
-      "Premium profile badge",
-      "Voice-to-text features",
-      "Additional chat features"
-    ]
+    benefits: ["Faster downloads", "Increased upload limits", "Premium stickers and reactions", "Premium profile badge", "Voice-to-text features", "Additional chat features"]
   },
   {
     name: "Google One",
+    logo: "https://cdn.simpleicons.org/googleone/4285F4",
     category: "Cloud",
     prices: [15, 40, 75],
     description: "Get additional cloud storage for your Google account.",
-    benefits: [
-      "More Google storage",
-      "Store photos and videos",
-      "Additional Gmail storage",
-      "Device backups",
-      "Eligible family sharing"
-    ]
+    benefits: ["More Google storage", "Store photos and videos", "Additional Gmail storage", "Device backups", "Eligible family sharing"]
   }
 ];
 
@@ -144,7 +98,6 @@ function escapeHTML(value) {
       '"': "&quot;",
       "'": "&#039;"
     };
-
     return entities[character];
   });
 }
@@ -168,9 +121,7 @@ function renderProducts() {
       ...product.benefits
     ].join(" ").toLowerCase();
 
-    const matchesSearch = searchableText.includes(searchTerm);
-
-    return matchesCategory && matchesSearch;
+    return matchesCategory && searchableText.includes(searchTerm);
   });
 
   if (filteredProducts.length === 0) {
@@ -203,6 +154,18 @@ function renderProducts() {
           </span>
         </div>
 
+        <div class="product-logo">
+          <img
+            src="${product.logo}"
+            alt="${escapeHTML(product.name)} logo"
+            loading="lazy"
+            onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
+          >
+          <span class="logo-fallback">
+            ${escapeHTML(product.name.substring(0, 2).toUpperCase())}
+          </span>
+        </div>
+
         <h3 class="product-name">
           ${escapeHTML(product.name)}
         </h3>
@@ -213,9 +176,7 @@ function renderProducts() {
 
         <div class="product-benefits">
           <h4>What's included</h4>
-          <ul>
-            ${benefits}
-          </ul>
+          <ul>${benefits}</ul>
         </div>
 
         <div class="product-purchase">
@@ -250,10 +211,7 @@ function renderProducts() {
   productGrid.querySelectorAll(".buy-btn").forEach(button => {
     button.addEventListener("click", () => {
       const productName = button.dataset.product;
-
-      const product = products.find(item => {
-        return item.name === productName;
-      });
+      const product = products.find(item => item.name === productName);
 
       if (!product) return;
 
@@ -328,7 +286,6 @@ document.querySelectorAll(".category").forEach(button => {
 
     button.classList.add("active");
     activeCategory = button.dataset.category;
-
     renderProducts();
   });
 });

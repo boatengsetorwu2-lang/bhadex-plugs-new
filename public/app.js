@@ -563,30 +563,3 @@ document.querySelectorAll(".category").forEach(button => {
 
 // INITIALIZE
 renderProducts();
-
-/* Premium Product Details Button */
-.details-btn {
-  width: 100%;
-  padding: 12px 16px;
-  background: linear-gradient(135deg, #1b1b1b, #292929);
-  color: #ffffff;
-  border: 1px solid #e50914;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.25s ease;
-}
-
-.details-btn:hover {
-  background: #e50914;
-  color: #ffffff;
-  border-color: #ff3038;
-  box-shadow: 0 0 14px rgba(229, 9, 20, 0.35);
-  transform: translateY(-2px);
-}
-
-.details-btn:focus-visible {
-  outline: 2px solid #ff5555;
-  outline-offset: 3px;
-}

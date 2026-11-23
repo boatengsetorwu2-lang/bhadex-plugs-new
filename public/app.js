@@ -253,9 +253,229 @@ premiumStyles.textContent = `
     overflow: hidden;
   }
 
+  /* PREMIUM CHECKOUT POPUP */
+  .checkout-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 10001;
+    background: rgba(0,0,0,0.88);
+    backdrop-filter: blur(9px);
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+    overflow-y: auto;
+  }
+
+  .checkout-modal.active {
+    display: flex;
+  }
+
+  .checkout-box {
+    position: relative;
+    width: 100%;
+    max-width: 440px;
+    padding: 34px 28px;
+    background: linear-gradient(145deg, #191919, #090909);
+    border: 1px solid rgba(229,9,20,0.5);
+    border-radius: 20px;
+    box-shadow: 0 25px 80px rgba(0,0,0,0.75);
+    color: #fff;
+    animation: checkoutAppear 0.25s ease;
+  }
+
+  @keyframes checkoutAppear {
+    from {
+      opacity: 0;
+      transform: translateY(15px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  .checkout-close {
+    position: absolute;
+    top: 14px;
+    right: 17px;
+    border: none;
+    background: transparent;
+    color: #aaa;
+    font-size: 27px;
+    cursor: pointer;
+  }
+
+  .checkout-close:hover {
+    color: #fff;
+  }
+
+  .checkout-brand {
+    text-align: center;
+    margin-bottom: 25px;
+  }
+
+  .checkout-brand-mark {
+    width: 55px;
+    height: 55px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 13px;
+    border-radius: 15px;
+    background: #e50914;
+    color: #fff;
+    font-size: 25px;
+    font-weight: 900;
+    box-shadow: 0 0 25px rgba(229,9,20,0.3);
+  }
+
+  .checkout-brand h2 {
+    margin: 0;
+    font-size: 22px;
+    letter-spacing: 1.5px;
+  }
+
+  .checkout-brand p {
+    margin: 7px 0 0;
+    color: #999;
+    font-size: 11px;
+    letter-spacing: 2px;
+  }
+
+  .checkout-heading {
+    margin-bottom: 18px;
+  }
+
+  .checkout-heading h3 {
+    margin: 0 0 7px;
+    font-size: 21px;
+  }
+
+  .checkout-heading p {
+    margin: 0;
+    color: #aaa;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .checkout-summary {
+    padding: 17px;
+    margin-bottom: 22px;
+    background: #202020;
+    border: 1px solid #333;
+    border-radius: 12px;
+  }
+
+  .checkout-summary-label {
+    color: #999;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .checkout-summary-product {
+    margin: 7px 0;
+    font-size: 17px;
+    font-weight: 700;
+  }
+
+  .checkout-summary-duration {
+    color: #aaa;
+    font-size: 13px;
+  }
+
+  .checkout-summary-price {
+    display: block;
+    margin-top: 13px;
+    padding-top: 13px;
+    border-top: 1px solid #383838;
+    color: #ff343c;
+    font-size: 23px;
+    font-weight: 800;
+  }
+
+  .checkout-field label {
+    display: block;
+    margin-bottom: 9px;
+    color: #eee;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .checkout-field input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 15px;
+    background: #101010;
+    border: 1px solid #444;
+    border-radius: 9px;
+    color: white;
+    font-size: 14px;
+    outline: none;
+    transition: border 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .checkout-field input:focus {
+    border-color: #e50914;
+    box-shadow: 0 0 0 3px rgba(229,9,20,0.12);
+  }
+
+  .checkout-field input::placeholder {
+    color: #777;
+  }
+
+  .checkout-error {
+    display: none;
+    margin: 12px 0 0;
+    color: #ff555d;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  .checkout-error.visible {
+    display: block;
+  }
+
+  .checkout-submit {
+    width: 100%;
+    margin-top: 20px;
+    padding: 15px;
+    border: 1px solid #e50914;
+    border-radius: 9px;
+    background: #e50914;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: 0.2s ease;
+  }
+
+  .checkout-submit:hover {
+    background: #bd000a;
+    box-shadow: 0 0 20px rgba(229,9,20,0.25);
+  }
+
+  .checkout-submit:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .checkout-secure-note {
+    margin: 17px 0 0;
+    color: #888;
+    font-size: 11px;
+    line-height: 1.6;
+    text-align: center;
+  }
+
   @media (max-width: 500px) {
     .product-modal-content {
       padding: 24px 18px;
+    }
+
+    .checkout-box {
+      padding: 30px 20px;
     }
   }
 `;
@@ -359,8 +579,214 @@ function closeProductModal() {
   }
 }
 
+// CREATE PREMIUM CHECKOUT MODAL
+function createCheckoutModal() {
+  if (document.getElementById("checkoutModal")) return;
+
+  document.body.insertAdjacentHTML("beforeend", `
+    <div
+      id="checkoutModal"
+      class="checkout-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="checkoutTitle"
+    >
+      <div class="checkout-box">
+
+        <button
+          type="button"
+          class="checkout-close"
+          id="closeCheckoutModal"
+          aria-label="Close checkout"
+        >&times;</button>
+
+        <div class="checkout-brand">
+          <div class="checkout-brand-mark">B</div>
+          <h2>BHADEX PLUGS</h2>
+          <p>DIGITAL ACCESS, ELEVATED</p>
+        </div>
+
+        <div class="checkout-heading">
+          <h3 id="checkoutTitle">Complete Your Order</h3>
+          <p>Enter your email address to continue to secure checkout.</p>
+        </div>
+
+        <div class="checkout-summary">
+          <span class="checkout-summary-label">Your selection</span>
+          <div class="checkout-summary-product" id="checkoutProductName"></div>
+          <div class="checkout-summary-duration" id="checkoutDuration"></div>
+          <span class="checkout-summary-price" id="checkoutPrice"></span>
+        </div>
+
+        <form id="checkoutForm">
+          <div class="checkout-field">
+            <label for="checkoutEmail">Email Address</label>
+            <input
+              type="email"
+              id="checkoutEmail"
+              placeholder="Enter your email address"
+              autocomplete="email"
+              required
+            >
+          </div>
+
+          <p id="checkoutError" class="checkout-error" role="alert"></p>
+
+          <button type="submit" class="checkout-submit" id="checkoutSubmit">
+            Continue to Payment
+          </button>
+        </form>
+
+        <p class="checkout-secure-note">
+          Your email will be used for your order confirmation and tracking.
+          Payment processing is handled by Paystack.
+        </p>
+
+      </div>
+    </div>
+  `);
+
+  document.getElementById("closeCheckoutModal")
+    .addEventListener("click", closeCheckoutModal);
+
+  document.getElementById("checkoutModal")
+    .addEventListener("click", event => {
+      if (event.target.id === "checkoutModal") {
+        closeCheckoutModal();
+      }
+    });
+
+  document.getElementById("checkoutForm")
+    .addEventListener("submit", submitCheckout);
+}
+
+// CHECKOUT STATE
+let checkoutProduct = null;
+let checkoutPackageIndex = null;
+let checkoutInProgress = false;
+
+// OPEN PREMIUM CHECKOUT
+function startCheckout(productName, packageIndex) {
+  const product = products.find(item => item.name === productName);
+
+  if (!product || product.prices[packageIndex] === undefined) {
+    alert("Please select a valid subscription.");
+    return;
+  }
+
+  createCheckoutModal();
+
+  checkoutProduct = product;
+  checkoutPackageIndex = packageIndex;
+  checkoutInProgress = false;
+
+  document.getElementById("checkoutProductName").textContent = product.name;
+  document.getElementById("checkoutDuration").textContent = packageNames[packageIndex];
+  document.getElementById("checkoutPrice").textContent =
+    `GH₵${product.prices[packageIndex]}`;
+
+  document.getElementById("checkoutEmail").value = "";
+  document.getElementById("checkoutError").textContent = "";
+  document.getElementById("checkoutError").classList.remove("visible");
+
+  const submitButton = document.getElementById("checkoutSubmit");
+  submitButton.disabled = false;
+  submitButton.textContent = "Continue to Payment";
+
+  document.getElementById("checkoutModal").classList.add("active");
+  document.body.classList.add("modal-open");
+
+  setTimeout(() => {
+    document.getElementById("checkoutEmail").focus();
+  }, 100);
+}
+
+// CLOSE PREMIUM CHECKOUT
+function closeCheckoutModal() {
+  if (checkoutInProgress) return;
+
+  const modal = document.getElementById("checkoutModal");
+
+  if (modal) {
+    modal.classList.remove("active");
+    document.body.classList.remove("modal-open");
+  }
+}
+
+// SHOW CHECKOUT ERROR
+function showCheckoutError(message) {
+  const error = document.getElementById("checkoutError");
+  error.textContent = message;
+  error.classList.add("visible");
+}
+
+// SUBMIT CHECKOUT
+async function submitCheckout(event) {
+  event.preventDefault();
+
+  if (checkoutInProgress || !checkoutProduct) return;
+
+  const emailInput = document.getElementById("checkoutEmail");
+  const email = emailInput.value.trim();
+
+  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  if (!emailPattern.test(email)) {
+    showCheckoutError("Please enter a valid email address.");
+    emailInput.focus();
+    return;
+  }
+
+  const submitButton = document.getElementById("checkoutSubmit");
+
+  checkoutInProgress = true;
+  submitButton.disabled = true;
+  submitButton.textContent = "Preparing secure checkout...";
+
+  document.getElementById("checkoutError").classList.remove("visible");
+
+  try {
+    const response = await fetch("/api/payments/initialize", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        product: checkoutProduct.name,
+        packageIndex: checkoutPackageIndex,
+        email: email
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.authorization_url) {
+      throw new Error(
+        data.error || "Could not start payment. Please try again."
+      );
+    }
+
+    window.location.href = data.authorization_url;
+
+  } catch (error) {
+    console.error("Checkout error:", error);
+
+    checkoutInProgress = false;
+    submitButton.disabled = false;
+    submitButton.textContent = "Continue to Payment";
+
+    showCheckoutError(
+      error.message || "Payment could not be started. Please try again."
+    );
+  }
+}
+
+// KEYBOARD SUPPORT
 document.addEventListener("keydown", event => {
-  if (event.key === "Escape") closeProductModal();
+  if (event.key === "Escape") {
+    closeProductModal();
+    closeCheckoutModal();
+  }
 });
 
 // RENDER PRODUCTS
@@ -473,45 +899,6 @@ function renderProducts() {
       if (product) openProductModal(product);
     });
   });
-}
-
-// CHECKOUT
-async function startCheckout(productName, packageIndex) {
-  const email = prompt("Enter your email address:");
-  if (!email) return;
-
-  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-  if (!emailPattern.test(email.trim())) {
-    alert("Please enter a valid email address.");
-    return;
-  }
-
-  try {
-    const response = await fetch("/api/payments/initialize", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        product: productName,
-        packageIndex,
-        email: email.trim()
-      })
-    });
-
-    const data = await response.json();
-
-    if (!response.ok || !data.authorization_url) {
-      throw new Error(data.error || "Could not start payment. Please try again.");
-    }
-
-    window.location.href = data.authorization_url;
-
-  } catch (error) {
-    console.error("Checkout error:", error);
-    alert(error.message || "Payment could not be started.");
-  }
 }
 
 // SEARCH

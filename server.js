@@ -19,24 +19,22 @@ app.set("trust proxy", 1);
 
 // PRODUCT PRICES
 const PRODUCT_PRICES = {
-  "Netflix": [35, 90, 170, 320, 450],
-  "YouTube Premium": [20, 55, 100, 190, 260],
-  "Spotify Premium": [18, 50, 95, 180, 250],
-  "Canva": [25, 70, 135, 250, 350],
-  "ChatGPT": [45, 125, 240, 460, 620],
-  "Microsoft 365": [30, 85, 160, 300, 420],
-  "Disney+": [25, 70, 135, 250, 350],
-  "Prime Video": [20, 55, 105, 200, 280],
-  "Telegram Premium": [20, 55, 105, 200, 280],
-  "Google One": [15, 40, 75, 140, 200]
+  "Netflix": [35, 90, 170],
+  "YouTube Premium": [20, 55, 100],
+  "Spotify Premium": [18, 50, 95],
+  "Canva": [25, 70, 135],
+  "ChatGPT": [45],
+  "Microsoft 365": [30, 85, 160],
+  "Disney+": [25, 70, 135],
+  "Prime Video": [20, 55, 105],
+  "Telegram Premium": [20, 55, 105],
+  "Google One": [15, 40, 75]
 };
 
 const PACKAGE_NAMES = [
-  "Basic",
-  "Standard",
-  "Premium",
-  "Advanced",
-  "Ultimate"
+  "1 Month",
+  "3 Months",
+  "1 Year"
 ];
 
 const fulfillmentStatuses = [
@@ -50,7 +48,9 @@ function getExpectedAmount(product, packageName) {
   const prices = PRODUCT_PRICES[product];
   const index = PACKAGE_NAMES.indexOf(packageName);
 
-  if (!prices || index === -1) return null;
+  if (!prices || index === -1 || prices[index] === undefined) {
+    return null;
+  }
 
   return prices[index] * 100;
 }
@@ -80,31 +80,19 @@ async function sendOrderConfirmationEmail(order) {
       html: `
         <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:25px;color:#222;">
           <h2 style="color:#d71920;">BHADEX PLUGS</h2>
-
           <h3>Payment confirmed!</h3>
-
           <p>Thank you for shopping with BHADEX PLUGS.</p>
           <p>Your payment has been confirmed successfully.</p>
-
-          <p><strong>Order Reference:</strong>
-          ${escapeHtml(order.reference)}</p>
-
-          <p><strong>Product:</strong>
-          ${escapeHtml(order.product)}</p>
-
-          <p><strong>Package:</strong>
-          ${escapeHtml(order.packageName)}</p>
-
-          <p><strong>Amount:</strong>
-          GH₵${Number(order.amount).toFixed(2)}</p>
-
+          <p><strong>Order Reference:</strong> ${escapeHtml(order.reference)}</p>
+          <p><strong>Product:</strong> ${escapeHtml(order.product)}</p>
+          <p><strong>Package:</strong> ${escapeHtml(order.packageName)}</p>
+          <p><strong>Amount:</strong> GH₵${Number(order.amount).toFixed(2)}</p>
           <p>
             <a href="${escapeHtml(trackingUrl)}"
               style="background:#d71920;color:white;padding:12px 20px;text-decoration:none;border-radius:5px;">
               Track Your Order
             </a>
           </p>
-
           <p>Thank you for choosing BHADEX PLUGS.</p>
           <p><strong>DIGITAL ACCESS, ELEVATED</strong></p>
         </div>
@@ -154,7 +142,6 @@ async function savePaidOrder(payment, metadata) {
     return;
   }
 
-  // Only one request can claim a pending email.
   const claim = await pool.query(
     `UPDATE orders
      SET confirmation_email_status = 'SENDING'
@@ -164,15 +151,10 @@ async function savePaidOrder(payment, metadata) {
     [reference]
   );
 
-  if (claim.rows.length === 0) {
-    return;
-  }
+  if (claim.rows.length === 0) return;
 
   try {
-    if (
-      !process.env.RESEND_API_KEY ||
-      !process.env.RESEND_FROM_EMAIL
-    ) {
+    if (!process.env.RESEND_API_KEY || !process.env.RESEND_FROM_EMAIL) {
       throw new Error("Resend environment variables are missing.");
     }
 
@@ -232,7 +214,6 @@ const paymentLimiter = rateLimit({
 });
 
 // PAYSTACK WEBHOOK
-// This must stay before express.json().
 app.post(
   "/api/payments/webhook",
   express.raw({ type: "application/json" }),
@@ -268,9 +249,7 @@ app.post(
 
       const reference = event.data?.reference;
 
-      if (!reference) {
-        return res.sendStatus(400);
-      }
+      if (!reference) return res.sendStatus(400);
 
       const verification = await axios.get(
         `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
@@ -366,15 +345,8 @@ app.use(
 
 // ADMIN PASSWORD COMPARISON
 function safePasswordCompare(input, correct) {
-  const inputHash = crypto
-    .createHash("sha256")
-    .update(input)
-    .digest();
-
-  const correctHash = crypto
-    .createHash("sha256")
-    .update(correct)
-    .digest();
+  const inputHash = crypto.createHash("sha256").update(input).digest();
+  const correctHash = crypto.createHash("sha256").update(correct).digest();
 
   return crypto.timingSafeEqual(inputHash, correctHash);
 }
@@ -404,10 +376,9 @@ app.post("/api/admin/login", loginLimiter, async (req, res) => {
       });
     }
 
-    req.session.regenerate((error) => {
+    req.session.regenerate(error => {
       if (error) {
         console.error("Session error:", error.message);
-
         return res.status(500).json({
           error: "Unable to create session."
         });
@@ -415,7 +386,7 @@ app.post("/api/admin/login", loginLimiter, async (req, res) => {
 
       req.session.isAdmin = true;
 
-      req.session.save((saveError) => {
+      req.session.save(saveError => {
         if (saveError) {
           return res.status(500).json({
             error: "Unable to save session."
@@ -431,7 +402,6 @@ app.post("/api/admin/login", loginLimiter, async (req, res) => {
 
   } catch (error) {
     console.error("Admin login error:", error.message);
-
     return res.status(500).json({
       error: "Login failed."
     });
@@ -440,7 +410,7 @@ app.post("/api/admin/login", loginLimiter, async (req, res) => {
 
 // ADMIN LOGOUT
 app.post("/api/admin/logout", requireAdmin, (req, res) => {
-  req.session.destroy((error) => {
+  req.session.destroy(error => {
     if (error) {
       return res.status(500).json({
         error: "Unable to log out."
@@ -448,23 +418,15 @@ app.post("/api/admin/logout", requireAdmin, (req, res) => {
     }
 
     res.clearCookie("connect.sid");
-
-    return res.json({
-      success: true
-    });
+    return res.json({ success: true });
   });
 });
 
 // CUSTOMER ORDER TRACKING
 app.post("/api/orders/track", trackingLimiter, async (req, res) => {
   try {
-    const reference = String(
-      req.body?.reference || ""
-    ).trim();
-
-    const email = String(
-      req.body?.email || ""
-    ).trim().toLowerCase();
+    const reference = String(req.body?.reference || "").trim();
+    const email = String(req.body?.email || "").trim().toLowerCase();
 
     if (
       !reference ||
@@ -520,7 +482,6 @@ app.post("/api/orders/track", trackingLimiter, async (req, res) => {
 
   } catch (error) {
     console.error("Order tracking error:", error.message);
-
     return res.status(500).json({
       error: "Unable to check this order right now."
     });
@@ -530,13 +491,8 @@ app.post("/api/orders/track", trackingLimiter, async (req, res) => {
 // ADMIN ORDER LIST AND STATISTICS
 app.get("/api/admin/orders", requireAdmin, async (req, res) => {
   try {
-    const status = String(
-      req.query.status || ""
-    ).toUpperCase();
-
-    const search = String(
-      req.query.search || ""
-    ).trim().slice(0, 100);
+    const status = String(req.query.status || "").toUpperCase();
+    const search = String(req.query.search || "").trim().slice(0, 100);
 
     const conditions = [];
     const values = [];
@@ -573,24 +529,12 @@ app.get("/api/admin/orders", requireAdmin, async (req, res) => {
     const statsResult = await pool.query(`
       SELECT
         COUNT(*)::int AS "totalOrders",
-        COUNT(*) FILTER (
-          WHERE status = 'PAID'
-        )::int AS "paidOrders",
-        COALESCE(
-          SUM(amount) FILTER (WHERE status = 'PAID'), 0
-        ) AS "totalRevenue",
-        COUNT(*) FILTER (
-          WHERE fulfillment_status = 'PENDING'
-        )::int AS "pendingOrders",
-        COUNT(*) FILTER (
-          WHERE fulfillment_status = 'PROCESSING'
-        )::int AS "processingOrders",
-        COUNT(*) FILTER (
-          WHERE fulfillment_status = 'DELIVERED'
-        )::int AS "deliveredOrders",
-        COUNT(*) FILTER (
-          WHERE fulfillment_status = 'CANCELLED'
-        )::int AS "cancelledOrders"
+        COUNT(*) FILTER (WHERE status = 'PAID')::int AS "paidOrders",
+        COALESCE(SUM(amount) FILTER (WHERE status = 'PAID'), 0) AS "totalRevenue",
+        COUNT(*) FILTER (WHERE fulfillment_status = 'PENDING')::int AS "pendingOrders",
+        COUNT(*) FILTER (WHERE fulfillment_status = 'PROCESSING')::int AS "processingOrders",
+        COUNT(*) FILTER (WHERE fulfillment_status = 'DELIVERED')::int AS "deliveredOrders",
+        COUNT(*) FILTER (WHERE fulfillment_status = 'CANCELLED')::int AS "cancelledOrders"
       FROM orders
     `);
 
@@ -601,7 +545,6 @@ app.get("/api/admin/orders", requireAdmin, async (req, res) => {
 
   } catch (error) {
     console.error("Admin orders error:", error.message);
-
     return res.status(500).json({
       error: "Unable to load orders."
     });
@@ -614,10 +557,7 @@ app.patch(
   requireAdmin,
   async (req, res) => {
     try {
-      const reference = String(
-        req.params.reference || ""
-      ).trim();
-
+      const reference = String(req.params.reference || "").trim();
       const fulfillmentStatus = String(
         req.body?.fulfillmentStatus || ""
       ).toUpperCase();
@@ -662,7 +602,6 @@ app.patch(
 
     } catch (error) {
       console.error("Delivery update error:", error.message);
-
       return res.status(500).json({
         error: "Unable to update delivery status."
       });
@@ -676,11 +615,7 @@ app.post(
   paymentLimiter,
   async (req, res) => {
     try {
-      const {
-        email,
-        product,
-        packageIndex
-      } = req.body || {};
+      const { email, product, packageIndex } = req.body || {};
 
       if (
         typeof email !== "string" ||
@@ -689,7 +624,7 @@ app.post(
         !Object.prototype.hasOwnProperty.call(PRODUCT_PRICES, product) ||
         !Number.isInteger(packageIndex) ||
         packageIndex < 0 ||
-        packageIndex >= PACKAGE_NAMES.length
+        packageIndex >= (PRODUCT_PRICES[product]?.length || 0)
       ) {
         return res.status(400).json({
           error: "Invalid payment details."
@@ -739,9 +674,7 @@ app.post(
 // PAYSTACK PAYMENT VERIFICATION
 app.get("/api/payments/verify/:reference", async (req, res) => {
   try {
-    const reference = String(
-      req.params.reference || ""
-    ).trim();
+    const reference = String(req.params.reference || "").trim();
 
     if (!reference || reference.length > 100) {
       return res.status(400).json({
@@ -802,7 +735,6 @@ async function startServer() {
   try {
     await initializeDatabase();
 
-    // Add email tracking columns safely to existing orders table.
     await pool.query(`
       ALTER TABLE orders
         ADD COLUMN IF NOT EXISTS confirmation_email_status

@@ -6,7 +6,12 @@ const products = [
     category: "Entertainment",
     prices: [35, 90, 170],
     description: "Enjoy movies, TV shows and award-winning Netflix Originals.",
-    benefits: ["Access to movies and TV series", "Netflix Original productions", "Downloads where supported", "Streaming quality based on your plan"]
+    benefits: [
+      "Access to movies and TV series",
+      "Netflix Original productions",
+      "Downloads where supported",
+      "Streaming quality based on your plan"
+    ]
   },
   {
     name: "YouTube Premium",
@@ -14,7 +19,12 @@ const products = [
     category: "Entertainment",
     prices: [20, 55, 100],
     description: "Enjoy YouTube with fewer interruptions and extra playback features.",
-    benefits: ["Ad-free YouTube viewing", "Background play", "Offline downloads", "YouTube Music Premium benefits"]
+    benefits: [
+      "Ad-free YouTube viewing",
+      "Background play",
+      "Offline downloads",
+      "YouTube Music Premium benefits"
+    ]
   },
   {
     name: "Spotify Premium",
@@ -22,7 +32,12 @@ const products = [
     category: "Entertainment",
     prices: [18, 50, 95],
     description: "Enjoy your favourite music with Premium listening features.",
-    benefits: ["Ad-free music listening", "Offline listening", "On-demand song selection", "Higher audio quality options"]
+    benefits: [
+      "Ad-free music listening",
+      "Offline listening",
+      "On-demand song selection",
+      "Higher audio quality options"
+    ]
   },
   {
     name: "Canva Pro",
@@ -30,7 +45,13 @@ const products = [
     category: "Productivity",
     prices: [25, 70, 135],
     description: "Create professional designs with Canva's premium creative tools.",
-    benefits: ["Premium templates", "Background remover", "Premium photos and graphics", "Design resizing tools", "AI design features"]
+    benefits: [
+      "Premium templates",
+      "Background remover",
+      "Premium photos and graphics",
+      "Design resizing tools",
+      "AI design features"
+    ]
   },
   {
     name: "ChatGPT Plus",
@@ -38,15 +59,26 @@ const products = [
     category: "Productivity",
     prices: [45],
     description: "Get access to additional ChatGPT capabilities and higher usage limits.",
-    benefits: ["Access to advanced AI capabilities", "Higher usage limits", "Image generation", "Document and file analysis", "Advanced research tools"]
+    benefits: [
+      "Access to advanced AI capabilities",
+      "Higher usage limits",
+      "Image generation",
+      "Document and file analysis",
+      "Advanced research tools"
+    ]
   },
   {
     name: "Microsoft 365",
-    logo: "https://cdn.simpleicons.org/microsoft/5E5E5E",
+    logo: "https://cdn.simpleicons.org/microsoft365/EB3C00",
     category: "Productivity",
     prices: [30, 85, 160],
     description: "Work smarter with Microsoft's productivity applications.",
-    benefits: ["Word, Excel and PowerPoint features", "OneDrive cloud storage", "File syncing", "Collaboration tools"]
+    benefits: [
+      "Word, Excel and PowerPoint features",
+      "OneDrive cloud storage",
+      "File syncing",
+      "Collaboration tools"
+    ]
   },
   {
     name: "Disney+",
@@ -54,7 +86,13 @@ const products = [
     category: "Entertainment",
     prices: [25, 70, 135],
     description: "Stream entertainment from Disney and its popular brands.",
-    benefits: ["Disney movies and series", "Marvel entertainment", "Star Wars content", "Pixar movies", "Downloads where supported"]
+    benefits: [
+      "Disney movies and series",
+      "Marvel entertainment",
+      "Star Wars content",
+      "Pixar movies",
+      "Downloads where supported"
+    ]
   },
   {
     name: "Prime Video",
@@ -62,7 +100,12 @@ const products = [
     category: "Entertainment",
     prices: [20, 55, 105],
     description: "Explore movies, television shows and Amazon Originals.",
-    benefits: ["Movies and TV shows", "Amazon Original productions", "Supported high-quality streaming", "Downloads where supported"]
+    benefits: [
+      "Movies and TV shows",
+      "Amazon Original productions",
+      "Supported high-quality streaming",
+      "Downloads where supported"
+    ]
   },
   {
     name: "Telegram Premium",
@@ -70,7 +113,14 @@ const products = [
     category: "Social",
     prices: [20, 55, 105],
     description: "Unlock additional features for your Telegram experience.",
-    benefits: ["Faster downloads", "Increased upload limits", "Premium stickers and reactions", "Premium profile badge", "Voice-to-text features", "Additional chat features"]
+    benefits: [
+      "Faster downloads",
+      "Increased upload limits",
+      "Premium stickers and reactions",
+      "Premium profile badge",
+      "Voice-to-text features",
+      "Additional chat features"
+    ]
   },
   {
     name: "Google One",
@@ -78,7 +128,13 @@ const products = [
     category: "Cloud",
     prices: [15, 40, 75],
     description: "Get additional cloud storage for your Google account.",
-    benefits: ["More Google storage", "Store photos and videos", "Additional Gmail storage", "Device backups", "Eligible family sharing"]
+    benefits: [
+      "More Google storage",
+      "Store photos and videos",
+      "Additional Gmail storage",
+      "Device backups",
+      "Eligible family sharing"
+    ]
   }
 ];
 
@@ -89,6 +145,49 @@ const searchInput = document.getElementById("search");
 
 let activeCategory = "All";
 
+// Logo styling
+const logoStyles = document.createElement("style");
+
+logoStyles.textContent = `
+  .product-logo {
+    width: 64px;
+    height: 64px;
+    margin: 18px 0 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 16px;
+    background: #181818;
+  }
+
+  .product-logo img {
+    display: block;
+    width: 42px;
+    height: 42px;
+    object-fit: contain;
+  }
+
+  .product-logo .logo-fallback {
+    display: none;
+    width: 100%;
+    height: 100%;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 20px;
+    font-weight: 700;
+  }
+
+  .product-logo .logo-fallback.is-visible {
+    display: flex;
+  }
+`;
+
+document.head.appendChild(logoStyles);
+
 function escapeHTML(value) {
   return String(value).replace(/[&<>"']/g, character => {
     const entities = {
@@ -98,6 +197,7 @@ function escapeHTML(value) {
       '"': "&quot;",
       "'": "&#039;"
     };
+
     return entities[character];
   });
 }
@@ -121,7 +221,9 @@ function renderProducts() {
       ...product.benefits
     ].join(" ").toLowerCase();
 
-    return matchesCategory && searchableText.includes(searchTerm);
+    const matchesSearch = searchableText.includes(searchTerm);
+
+    return matchesCategory && matchesSearch;
   });
 
   if (filteredProducts.length === 0) {
@@ -159,8 +261,12 @@ function renderProducts() {
             src="${product.logo}"
             alt="${escapeHTML(product.name)} logo"
             loading="lazy"
-            onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
+            onerror="
+              this.style.display='none';
+              this.nextElementSibling.classList.add('is-visible');
+            "
           >
+
           <span class="logo-fallback">
             ${escapeHTML(product.name.substring(0, 2).toUpperCase())}
           </span>
@@ -176,7 +282,9 @@ function renderProducts() {
 
         <div class="product-benefits">
           <h4>What's included</h4>
-          <ul>${benefits}</ul>
+          <ul>
+            ${benefits}
+          </ul>
         </div>
 
         <div class="product-purchase">
@@ -211,7 +319,10 @@ function renderProducts() {
   productGrid.querySelectorAll(".buy-btn").forEach(button => {
     button.addEventListener("click", () => {
       const productName = button.dataset.product;
-      const product = products.find(item => item.name === productName);
+
+      const product = products.find(item => {
+        return item.name === productName;
+      });
 
       if (!product) return;
 
@@ -286,6 +397,7 @@ document.querySelectorAll(".category").forEach(button => {
 
     button.classList.add("active");
     activeCategory = button.dataset.category;
+
     renderProducts();
   });
 });

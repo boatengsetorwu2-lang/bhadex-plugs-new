@@ -1,0 +1,129 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#080808">
+  <title>Create Account | BHADEX PLUGS</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .auth-container {
+      width: min(430px, 92%);
+      margin: 65px auto;
+      padding: 30px;
+      background: #111;
+      border: 1px solid #292929;
+      border-radius: 14px;
+    }
+    .auth-container h1 { margin-bottom: 8px; }
+    .auth-container p { color: #aaa; margin-bottom: 24px; }
+    .auth-container label {
+      display: block;
+      margin: 16px 0 7px;
+    }
+    .auth-container input {
+      width: 100%;
+      padding: 13px;
+      color: white;
+      background: #080808;
+      border: 1px solid #333;
+      border-radius: 7px;
+      box-sizing: border-box;
+    }
+    .auth-container button {
+      width: 100%;
+      margin-top: 22px;
+      padding: 14px;
+      color: white;
+      background: #d71920;
+      border: 0;
+      border-radius: 7px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    #message { margin-top: 16px; font-size: 14px; }
+    .auth-footer { margin-top: 20px; text-align: center; }
+    .auth-footer a { color: #e53935; }
+  </style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="brand" href="index.html">BHADEX PLUGS</a>
+</header>
+
+<main class="auth-container">
+  <h1>Create Account</h1>
+  <p>Join BHADEX PLUGS to manage and track your orders.</p>
+
+  <form id="registerForm">
+    <label for="name">Full Name</label>
+    <input id="name" name="name" type="text"
+      placeholder="Enter your full name" required maxlength="100">
+
+    <label for="email">Email Address</label>
+    <input id="email" name="email" type="email"
+      placeholder="Enter your email" required maxlength="255">
+
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password"
+      placeholder="Create a password" required minlength="8">
+
+    <button type="submit" id="registerButton">Create Account</button>
+  </form>
+
+  <div id="message" role="status"></div>
+
+  <div class="auth-footer">
+    Already have an account? <a href="login.html">Login</a>
+  </div>
+</main>
+
+<script>
+const form = document.getElementById("registerForm");
+const message = document.getElementById("message");
+const button = document.getElementById("registerButton");
+
+form.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  button.disabled = true;
+  button.textContent = "Creating account...";
+  message.textContent = "";
+
+  const data = {
+    name: document.getElementById("name").value.trim(),
+    email: document.getElementById("email").value.trim(),
+    password: document.getElementById("password").value
+  };
+
+  try {
+    const response = await fetch("/api/customer/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify(data)
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.error || "Registration failed.");
+    }
+
+    message.style.color = "#4ade80";
+    message.textContent = "Account created successfully!";
+    window.location.href = "account.html";
+  } catch (error) {
+    message.style.color = "#ff5555";
+    message.textContent = error.message;
+  } finally {
+    button.disabled = false;
+    button.textContent = "Create Account";
+  }
+});
+</script>
+
+</body>
+</html>

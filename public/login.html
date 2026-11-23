@@ -41,6 +41,17 @@
     #message { margin-top: 16px; font-size: 14px; }
     .auth-footer { margin-top: 20px; text-align: center; }
     .auth-footer a { color: #e53935; }
+    .forgot-link {
+      display: block;
+      margin-top: 12px;
+      text-align: right;
+      color: #e53935;
+      font-size: 14px;
+      text-decoration: none;
+    }
+    .forgot-link:hover, .auth-footer a:hover {
+      text-decoration: underline;
+    }
   </style>
 </head>
 <body>
@@ -59,6 +70,10 @@
 
     <label for="password">Password</label>
     <input id="password" type="password" placeholder="Enter your password" required>
+
+    <a href="forgot-password.html" class="forgot-link">
+      Forgot Password?
+    </a>
 
     <button type="submit" id="loginButton">Login</button>
   </form>

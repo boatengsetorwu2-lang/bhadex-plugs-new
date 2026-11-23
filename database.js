@@ -40,7 +40,11 @@ async function initializeDatabase() {
         VARCHAR(30) NOT NULL DEFAULT 'PENDING',
       ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMPTZ,
       ADD COLUMN IF NOT EXISTS fulfillment_updated_at
-        TIMESTAMPTZ NOT NULL DEFAULT NOW();
+        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      ADD COLUMN IF NOT EXISTS confirmation_email_status
+        VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+      ADD COLUMN IF NOT EXISTS confirmation_email_sent_at
+        TIMESTAMPTZ;
   `);
 
   await pool.query(`
@@ -61,6 +65,11 @@ async function initializeDatabase() {
       email_otp_expires_at TIMESTAMPTZ,
       email_otp_attempts INTEGER NOT NULL DEFAULT 0,
       email_otp_last_sent_at TIMESTAMPTZ,
+      password_reset_otp_hash TEXT,
+      password_reset_otp_expires_at TIMESTAMPTZ,
+      password_reset_otp_attempts INTEGER NOT NULL DEFAULT 0,
+      password_reset_last_sent_at TIMESTAMPTZ,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
   `);
@@ -73,7 +82,14 @@ async function initializeDatabase() {
       ADD COLUMN IF NOT EXISTS email_otp_expires_at TIMESTAMPTZ,
       ADD COLUMN IF NOT EXISTS email_otp_attempts
         INTEGER NOT NULL DEFAULT 0,
-      ADD COLUMN IF NOT EXISTS email_otp_last_sent_at TIMESTAMPTZ;
+      ADD COLUMN IF NOT EXISTS email_otp_last_sent_at TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS password_reset_otp_hash TEXT,
+      ADD COLUMN IF NOT EXISTS password_reset_otp_expires_at TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS password_reset_otp_attempts
+        INTEGER NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS password_reset_last_sent_at TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS updated_at
+        TIMESTAMPTZ NOT NULL DEFAULT NOW();
   `);
 
   await pool.query(`

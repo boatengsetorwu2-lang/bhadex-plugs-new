@@ -16,7 +16,7 @@ const pool = new Pool({
 });
 
 async function initializeDatabase() {
-  // Create orders table if it does not exist
+  // Create orders table
   await pool.query(`
     CREATE TABLE IF NOT EXISTS orders (
       id BIGSERIAL PRIMARY KEY,
@@ -35,7 +35,7 @@ async function initializeDatabase() {
     );
   `);
 
-  // Safely add new columns to an existing database
+  // Safely add missing order columns
   await pool.query(`
     ALTER TABLE orders
       ADD COLUMN IF NOT EXISTS fulfillment_status
@@ -51,6 +51,29 @@ async function initializeDatabase() {
     SET fulfillment_status = 'PENDING'
     WHERE fulfillment_status IS NULL
        OR fulfillment_status = '';
+  `);
+
+  // Create customers table
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS customers (
+      id BIGSERIAL PRIMARY KEY,
+      name VARCHAR(100) NOT NULL,
+      email VARCHAR(255) NOT NULL,
+      password_hash TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+
+  // Prevent duplicate customer emails, including different letter cases
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS customers_email_lower_unique
+    ON customers (LOWER(email));
+  `);
+
+  // Improve customer order lookup
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS orders_customer_email_lower_idx
+    ON orders (LOWER(customer_email));
   `);
 
   console.log("BHADEX PLUGS database initialized.");

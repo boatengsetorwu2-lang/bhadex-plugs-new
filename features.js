@@ -855,19 +855,22 @@ module.exports = function createFeatureRouter({ pool, requireCustomer, requireAd
     }
   });
 
+  // Gift cards are currently TEST-ONLY: inactive by default and not redeemable at checkout.
   router.post("/admin/gift-cards", requireAdmin, async (req, res) => {
     try {
       const value = Number(req.body?.value);
-      if (!Number.isFinite(value) || value < 1 || value > 5000) return res.status(400).json({ error: "Gift card value must be between GH₵1 and GH₵5,000." });
-      const code = "BHD-" + cryptoRandomCode(12);
+      if (![50, 100, 200].includes(value)) {
+        return res.status(400).json({ error: "Choose a test gift card value of GH₵50, GH₵100 or GH₵200." });
+      }
+      const code = "BHD-TEST-" + cryptoRandomCode(12);
       const result = await pool.query(
-        "INSERT INTO store_gift_cards(code, value, balance) VALUES($1,$2,$2) RETURNING code, value, balance, active",
+        "INSERT INTO store_gift_cards(code, value, balance, active) VALUES($1,$2,$2,FALSE) RETURNING code, value, balance, active",
         [code, value]
       );
-      res.status(201).json({ giftCard: result.rows[0] });
+      res.status(201).json({ giftCard: result.rows[0], testOnly: true });
     } catch (error) {
       console.error("Gift card create error:", error.message);
-      res.status(500).json({ error: "Unable to create gift card." });
+      res.status(500).json({ error: "Unable to create test gift card." });
     }
   });
 

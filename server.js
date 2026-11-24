@@ -1422,6 +1422,51 @@ app.post("/api/admin/logout", requireAdmin, (req, res) => {
   });
 });
 
+// PRODUCT INVENTORY MANAGEMENT
+app.get("/api/admin/inventory", requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query("SELECT product_name, is_available FROM product_inventory ORDER BY product_name ASC");
+    return res.json({ products: result.rows.map(row => ({ name: row.product_name, isAvailable: row.is_available })) });
+  } catch (error) {
+    console.error("Inventory load error:", error.message);
+    return res.status(500).json({ error: "Unable to load product inventory." });
+  }
+});
+
+app.patch("/api/admin/inventory/:productName", requireAdmin, async (req, res) => {
+  try {
+    const productName = String(req.params.productName || "");
+    const isAvailable = req.body?.isAvailable;
+    if (!Object.prototype.hasOwnProperty.call(PRODUCT_PRICES, productName) || typeof isAvailable !== "boolean") {
+      return res.status(400).json({ error: "Invalid inventory update." });
+    }
+    const result = await pool.query(
+      `INSERT INTO product_inventory (product_name, is_available, updated_at)
+       VALUES ($1, $2, NOW())
+       ON CONFLICT (product_name)
+       DO UPDATE SET is_available = EXCLUDED.is_available, updated_at = NOW()
+       RETURNING product_name, is_available`,
+      [productName, isAvailable]
+    );
+    return res.json({ success: true, product: { name: result.rows[0].product_name, isAvailable: result.rows[0].is_available } });
+  } catch (error) {
+    console.error("Inventory update error:", error.message);
+    return res.status(500).json({ error: "Unable to update product availability." });
+  }
+});
+
+app.get("/api/products/availability", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT product_name, is_available FROM product_inventory");
+    const availability = {};
+    result.rows.forEach(row => { availability[row.product_name] = row.is_available; });
+    return res.json({ availability });
+  } catch (error) {
+    console.error("Public inventory error:", error.message);
+    return res.status(500).json({ error: "Product availability is temporarily unavailable." });
+  }
+});
+
 // PUBLIC ORDER TRACKING
 app.post("/api/orders/track", trackingLimiter, async (req, res) => {
   try {
@@ -1636,6 +1681,14 @@ app.post(
         });
       }
 
+      const stockResult = await pool.query(
+        "SELECT is_available FROM product_inventory WHERE product_name = $1 LIMIT 1",
+        [product]
+      );
+      if (stockResult.rows.length && stockResult.rows[0].is_available === false) {
+        return res.status(409).json({ error: "This subscription is currently out of stock. Please check back later." });
+      }
+
       const amount = PRODUCT_PRICES[product][packageIndex];
       const packageName = PACKAGE_NAMES[packageIndex];
       const baseAmountPesewas = amount * 100;
@@ -1761,6 +1814,22 @@ app.get("/api/payments/verify/:reference", async (req, res) => {
 async function startServer() {
   try {
     await initializeDatabase();
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS product_inventory (
+        product_name TEXT PRIMARY KEY,
+        is_available BOOLEAN NOT NULL DEFAULT TRUE,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+    for (const productName of Object.keys(PRODUCT_PRICES)) {
+      await pool.query(
+        `INSERT INTO product_inventory (product_name, is_available)
+         VALUES ($1, TRUE)
+         ON CONFLICT (product_name) DO NOTHING`,
+        [productName]
+      );
+    }
 
     await pool.query(`
       ALTER TABLE orders

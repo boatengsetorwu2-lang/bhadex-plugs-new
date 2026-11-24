@@ -685,6 +685,21 @@ app.post(
       const name = String(req.body?.name || "").trim();
       const email = String(req.body?.email || "").trim().toLowerCase();
       const password = req.body?.password;
+      const referralCode = String(req.body?.referralCode || "").trim().toUpperCase();
+      let referringCustomer = null;
+      if (referralCode) {
+        const referralOwner = await pool.query(
+          "SELECT id, email FROM customers WHERE UPPER(referral_code) = $1 LIMIT 1",
+          [referralCode]
+        );
+        if (!referralOwner.rows.length) {
+          return res.status(400).json({ error: "That referral code is not valid." });
+        }
+        if (String(referralOwner.rows[0].email).toLowerCase() === email) {
+          return res.status(400).json({ error: "You cannot use your own referral code." });
+        }
+        referringCustomer = referralOwner.rows[0];
+      }
 
       if (
         name.length < 2 ||
@@ -729,6 +744,15 @@ app.post(
         RETURNING id, name, email`,
         [name, email, passwordHash, otpHash]
       );
+      if (referringCustomer) {
+        await pool.query(
+          `INSERT INTO customer_referrals
+             (referrer_customer_id, referred_customer_id, referral_code)
+           VALUES ($1, $2, $3)
+           ON CONFLICT (referred_customer_id) DO NOTHING`,
+          [referringCustomer.id, result.rows[0].id, referralCode]
+        );
+      }
 
       try {
         await sendEmailVerificationOTP(email, code);
@@ -1810,6 +1834,47 @@ app.patch(
              ON CONFLICT(order_reference) DO NOTHING`,
             [row.customer_id, row.reference, points]
           );
+
+          const client = await pool.connect();
+          try {
+            await client.query("BEGIN");
+            const referral = await client.query(
+              `SELECT id, referrer_customer_id, referred_customer_id
+               FROM customer_referrals
+               WHERE referred_customer_id = $1 AND status = 'PENDING'
+               FOR UPDATE`,
+              [row.customer_id]
+            );
+            if (referral.rows.length) {
+              const referralRow = referral.rows[0];
+              const bonusPoints = 100;
+              await client.query(
+                `INSERT INTO loyalty_ledger(customer_id, order_reference, points)
+                 VALUES($1, $2, $3), ($4, $5, $3)
+                 ON CONFLICT(order_reference) DO NOTHING`,
+                [
+                  referralRow.referrer_customer_id,
+                  "REF-" + referralRow.id + "-INVITER",
+                  bonusPoints,
+                  referralRow.referred_customer_id,
+                  "REF-" + referralRow.id + "-NEW"
+                ]
+              );
+              await client.query(
+                `UPDATE customer_referrals
+                 SET status = 'REWARDED', points_awarded = $1,
+                     qualifying_order_reference = $2, rewarded_at = NOW()
+                 WHERE id = $3 AND status = 'PENDING'`,
+                [bonusPoints, row.reference, referralRow.id]
+              );
+            }
+            await client.query("COMMIT");
+          } catch (referralError) {
+            await client.query("ROLLBACK");
+            console.error("Referral reward error:", referralError.message);
+          } finally {
+            client.release();
+          }
         }
       }
 

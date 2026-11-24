@@ -572,6 +572,30 @@
         </div>
       </div>
 
+      <!-- BUSINESS ANALYTICS -->
+      <section class="panel" id="businessAnalyticsPanel">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+          <div>
+            <h2>Business Analytics · Last 30 Days</h2>
+            <p class="muted">Sales figures use paid orders only. Demo/test payments are not real income.</p>
+          </div>
+          <button type="button" class="secondary" id="refreshAnalyticsBtn">Refresh Analytics</button>
+        </div>
+        <p id="analyticsMessage" class="message" aria-live="polite">Analytics will load after login.</p>
+        <div class="stats">
+          <div class="stat"><p>Paid Revenue</p><h3 id="analyticsRevenue">GH₵0.00</h3></div>
+          <div class="stat"><p>Paid Orders</p><h3 id="analyticsPaidOrders">0</h3></div>
+          <div class="stat"><p>Customers</p><h3 id="analyticsCustomers">0</h3></div>
+          <div class="stat"><p>Delivered Orders</p><h3 id="analyticsDelivered">0</h3></div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px;">
+          <div><h3>Top Products</h3><div id="analyticsTopProducts" class="inventory-list"></div></div>
+          <div><h3>Delivery Status</h3><div id="analyticsFulfillment" class="inventory-list"></div></div>
+        </div>
+        <h3>Daily Sales · 30 Days</h3>
+        <div id="analyticsDaily" class="inventory-list"></div>
+      </section>
+
       <!-- PRODUCT INVENTORY -->
       <section class="panel">
         <h2>Product Inventory</h2>
@@ -1159,6 +1183,7 @@
         showDashboard();
 
         await loadOrders();
+        await loadBusinessAnalytics();
         await loadCustomers();
         await loadInventory();
         await loadAdminReferrals();
@@ -2239,6 +2264,70 @@
         if (error.message !== "Session expired") message.textContent = "Could not load reviews: " + error.message;
       }
     }
+
+    // BUSINESS ANALYTICS
+    async function loadBusinessAnalytics() {
+      const message = document.getElementById("analyticsMessage");
+      message.textContent = "Loading analytics...";
+      try {
+        const data = await request("/api/features/admin/analytics");
+        const summary = data.summary || {};
+        document.getElementById("analyticsRevenue").textContent = money(summary.revenue);
+        document.getElementById("analyticsPaidOrders").textContent = Number(summary.paid_orders || 0);
+        document.getElementById("analyticsCustomers").textContent = Number(summary.customers || 0);
+        document.getElementById("analyticsDelivered").textContent = Number(summary.delivered_orders || 0);
+
+        const top = document.getElementById("analyticsTopProducts");
+        top.replaceChildren();
+        (data.topProducts || []).forEach(item => {
+          const row = document.createElement("div");
+          row.className = "inventory-row";
+          const name = document.createElement("strong");
+          name.textContent = item.product || "Product";
+          const detail = document.createElement("span");
+          detail.className = "inventory-state";
+          detail.textContent = Number(item.orders || 0) + " paid order(s) · " + money(item.revenue);
+          row.append(name, detail);
+          top.appendChild(row);
+        });
+        if (!top.children.length) top.textContent = "No paid product sales in this period.";
+
+        const statuses = document.getElementById("analyticsFulfillment");
+        statuses.replaceChildren();
+        (data.fulfillment || []).forEach(item => {
+          const row = document.createElement("div");
+          row.className = "inventory-row";
+          const name = document.createElement("strong");
+          name.textContent = String(item.status || "UNKNOWN").replace(/_/g, " ");
+          const count = document.createElement("span");
+          count.className = "inventory-state";
+          count.textContent = Number(item.count || 0) + " order(s)";
+          row.append(name, count);
+          statuses.appendChild(row);
+        });
+        if (!statuses.children.length) statuses.textContent = "No orders in this period.";
+
+        const daily = document.getElementById("analyticsDaily");
+        daily.replaceChildren();
+        (data.daily || []).slice(-14).reverse().forEach(item => {
+          const row = document.createElement("div");
+          row.className = "inventory-row";
+          const day = document.createElement("strong");
+          day.textContent = new Date(item.day + "T00:00:00").toLocaleDateString();
+          const detail = document.createElement("span");
+          detail.className = "inventory-state";
+          detail.textContent = Number(item.orders || 0) + " paid order(s) · " + money(item.revenue);
+          row.append(day, detail);
+          daily.appendChild(row);
+        });
+        if (!daily.children.length) daily.textContent = "No daily sales recorded yet.";
+        message.textContent = "Analytics updated. Showing the last 30 days; daily list shows the latest 14 days.";
+      } catch (error) {
+        if (error.message !== "Session expired") message.textContent = "Could not load analytics: " + error.message;
+      }
+    }
+
+    document.getElementById("refreshAnalyticsBtn").addEventListener("click", loadBusinessAnalytics);
 
     // LOAD CUSTOMER ORDERS
     async function loadOrders() {

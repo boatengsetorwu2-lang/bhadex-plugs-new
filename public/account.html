@@ -393,6 +393,7 @@ body {
     <a href="#track">Track Order</a>
     <a href="#orders">My Orders</a>
     <a href="#rewards">Loyalty Rewards</a>
+    <a href="#referrals">Refer a Friend</a>
     <a href="#wishlist">Wishlist</a>
     <a href="#reviews">Write a Review</a>
     <a href="#profile">My Profile</a>
@@ -464,6 +465,27 @@ body {
       <p class="muted">Loading your points history...</p>
     </div>
     <div id="loyaltyMessage" class="message" role="status"></div>
+  </section>
+
+  <!-- CUSTOMER REFERRALS -->
+  <section class="dashboard-card" id="referrals">
+    <h2>Refer a Friend</h2>
+    <p class="muted">Share your referral link. When a new customer registers with your code and completes their first paid order marked as delivered, both of you earn 100 loyalty points.</p>
+    <div class="summary-grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));">
+      <div class="summary-card"><p>Total Referrals</p><h2 id="referralTotal">—</h2></div>
+      <div class="summary-card"><p>Successful Referrals</p><h2 id="referralSuccessful">—</h2></div>
+      <div class="summary-card"><p>Referral Points Earned</p><h2 id="referralPoints">—</h2></div>
+    </div>
+    <div style="margin-top:16px;">
+      <label for="myReferralCode">Your Referral Code</label>
+      <input id="myReferralCode" type="text" readonly>
+      <label for="myReferralLink" style="display:block;margin-top:12px;">Your Shareable Referral Link</label>
+      <input id="myReferralLink" type="text" readonly>
+      <button class="primary-button" type="button" id="copyReferralLink" style="margin-top:10px;">Copy Referral Link</button>
+    </div>
+    <h3 style="margin-top:24px;">Referral History</h3>
+    <div id="referralHistory"><p class="muted">Loading referral history...</p></div>
+    <div id="referralMessage" class="message" role="status"></div>
   </section>
 
   <!-- CUSTOMER WISHLIST -->
@@ -695,6 +717,7 @@ async function loadAccount() {
     await loadOrders();
     await loadCustomerReviewOptions();
     await loadRewards();
+    await loadReferral();
     await loadWishlist();
     await loadSupportTickets();
 
@@ -767,6 +790,64 @@ async function loadRewards() {
     historyElement.textContent = error.message || "Unable to load your points history.";
   }
 }
+
+// LOAD CUSTOMER REFERRAL PROGRAM
+async function loadReferral() {
+  const history = document.getElementById("referralHistory");
+  try {
+    const result = await apiRequest("/api/features/customer/referral");
+    document.getElementById("myReferralCode").value = result.referralCode || "";
+    document.getElementById("myReferralLink").value = result.referralLink || "";
+    document.getElementById("referralTotal").textContent = Number(result.totalReferrals || 0).toLocaleString();
+    document.getElementById("referralSuccessful").textContent = Number(result.successfulReferrals || 0).toLocaleString();
+    document.getElementById("referralPoints").textContent = Number(result.pointsEarned || 0).toLocaleString();
+    history.replaceChildren();
+    const referrals = Array.isArray(result.referrals) ? result.referrals : [];
+    if (!referrals.length) {
+      const empty = document.createElement("p");
+      empty.className = "muted";
+      empty.textContent = "No referrals yet. Share your link to invite someone.";
+      history.appendChild(empty);
+      return;
+    }
+    referrals.forEach(referral => {
+      const row = document.createElement("div");
+      row.className = "order";
+      const title = document.createElement("p");
+      const strong = document.createElement("strong");
+      strong.textContent = referral.referred_name || "New customer";
+      title.appendChild(strong);
+      const status = document.createElement("p");
+      status.className = "muted";
+      status.textContent = referral.status === "REWARDED"
+        ? "Successful · +" + Number(referral.points_awarded || 0) + " points earned"
+        : "Pending · reward after their first paid order is delivered";
+      const date = document.createElement("p");
+      date.className = "muted";
+      date.textContent = referral.created_at ? new Date(referral.created_at).toLocaleDateString() : "";
+      row.append(title, status, date);
+      history.appendChild(row);
+    });
+  } catch (error) {
+    history.textContent = error.message;
+  }
+}
+
+document.getElementById("copyReferralLink").addEventListener("click", async () => {
+  const link = document.getElementById("myReferralLink").value;
+  const message = document.getElementById("referralMessage");
+  if (!link) {
+    message.textContent = "Your referral link is not ready yet.";
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(link);
+    message.textContent = "Referral link copied.";
+  } catch {
+    document.getElementById("myReferralLink").select();
+    message.textContent = "Select and copy the referral link.";
+  }
+});
 
 // LOAD CUSTOMER WISHLIST
 async function loadWishlist() {

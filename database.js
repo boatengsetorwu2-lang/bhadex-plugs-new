@@ -163,10 +163,16 @@ async function initializeDatabase() {
       message TEXT NOT NULL,
       order_reference VARCHAR(100),
       status VARCHAR(20) NOT NULL DEFAULT 'OPEN',
+      priority VARCHAR(10) NOT NULL DEFAULT 'NORMAL',
       admin_reply TEXT,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+
+    ALTER TABLE support_tickets
+      ADD COLUMN IF NOT EXISTS priority VARCHAR(10) NOT NULL DEFAULT 'NORMAL';
+    CREATE INDEX IF NOT EXISTS support_tickets_customer_created_idx
+      ON support_tickets(customer_id, created_at DESC);
 
     CREATE TABLE IF NOT EXISTS refund_requests (
       id BIGSERIAL PRIMARY KEY,

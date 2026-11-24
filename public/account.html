@@ -377,7 +377,7 @@ body {
 <body>
 
 <header class="topbar">
-  <a class="brand" href="index.html">BHADEX PLUGS</a>
+  <a class="brand" href="index.html">BHADEX PLUGS</a><a class="account-home-link" href="index.html">Home</a>
 </header>
 
 <main class="dashboard">
@@ -396,8 +396,7 @@ body {
     <a href="#referrals">Refer a Friend</a>
     <a href="#wishlist">Wishlist</a>
     <a href="#reviews">Write a Review</a>
-    <a href="#profile">My Profile</a>
-    <a href="#security">Security</a>
+    <a href="#settings">Account Settings</a>
     <a href="#support">Support</a>
   </nav>
 
@@ -554,34 +553,46 @@ body {
     </div>
   </section>
 
-  <!-- PROFILE -->
-  <section class="dashboard-card" id="profile">
-    <h2>My Profile</h2>
-    <p class="muted">Update your customer information.</p>
-
+  <!-- ACCOUNT SETTINGS -->
+  <section class="dashboard-card" id="settings">
+    <h2>Account Settings</h2>
+    <p class="muted">Manage your profile photo, name, email address and password.</p>
+    <div class="profile-photo-area">
+      <img id="profileAvatar" alt="Your profile picture" src="" class="profile-avatar hidden">
+      <div id="profileInitials" class="profile-avatar profile-initials">B</div>
+      <div>
+        <label for="profilePhotoInput">Profile picture</label>
+        <input id="profilePhotoInput" type="file" accept="image/jpeg,image/png,image/webp">
+        <p class="muted">JPG, PNG or WEBP. Maximum 1 MB.</p>
+        <button type="button" class="primary-button" id="savePhotoButton">Save Picture</button>
+        <button type="button" class="secondary-button" id="removePhotoButton">Remove Picture</button>
+        <p id="photoMessage" class="message" role="status"></p>
+      </div>
+    </div>
+    <div class="settings-divider"></div>
+    <h3>Personal information</h3>
     <form id="profileForm">
-      <div class="form-group">
-        <label for="profileName">Full Name</label>
-        <input id="profileName" type="text" maxlength="100" required>
-      </div>
-
-      <div class="form-group">
-        <label for="profileEmail">Email Address</label>
-        <input id="profileEmail" type="email" disabled>
-      </div>
-
-      <button class="primary-button" type="submit" id="profileButton">
-        Save Changes
-      </button>
+      <div class="form-group"><label for="profileName">Full Name</label><input id="profileName" type="text" maxlength="100" required></div>
+      <div class="form-group"><label for="profileEmail">Current Email Address</label><input id="profileEmail" type="email" disabled></div>
+      <button class="primary-button" type="submit" id="profileButton">Save Name</button>
     </form>
-
-    <div id="profileMessage" class="message" role="status"></div>
-  </section>
-
-  <!-- SECURITY -->
-  <section class="dashboard-card" id="security">
-    <h2>Account Security</h2>
-    <p class="muted">Change your account password.</p>
+    <p id="profileMessage" class="message" role="status"></p>
+    <div class="settings-divider"></div>
+    <h3>Change email address</h3>
+    <p class="muted">We'll send a one-time code to your new email address before changing it.</p>
+    <form id="emailChangeForm">
+      <div class="form-group"><label for="newEmail">New email address</label><input id="newEmail" type="email" maxlength="255" autocomplete="email" required></div>
+      <div class="form-group"><label for="emailCurrentPassword">Current password</label><input id="emailCurrentPassword" type="password" maxlength="128" autocomplete="current-password" required></div>
+      <button class="primary-button" type="submit" id="emailRequestButton">Send verification code</button>
+    </form>
+    <form id="emailVerifyForm" class="hidden">
+      <div class="form-group"><label for="emailChangeCode">6-digit verification code</label><input id="emailChangeCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" required></div>
+      <button class="primary-button" type="submit" id="emailVerifyButton">Verify and change email</button>
+    </form>
+    <p id="emailChangeMessage" class="message" role="status"></p>
+    <div class="settings-divider"></div>
+    <h3>Account password</h3>
+    <p class="muted">Use a strong password you don't use on other websites.</p>
 
     <form id="passwordForm">
       <div class="form-group">

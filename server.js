@@ -85,7 +85,7 @@ async function getExpectedPaymentAmount(metadata) {
   );
   if (
     !redemption.rows.length ||
-    redemption.rows[0].status !== "PENDING" ||
+    !(redemption.rows[0].status === "PENDING" || redemption.rows[0].status === "REDEEMED") ||
     new Date(redemption.rows[0].expires_at) <= new Date() ||
     Number(redemption.rows[0].points) !== points ||
     Number(redemption.rows[0].discount_pesewas) !== points
@@ -1859,7 +1859,7 @@ app.get("/api/payments/verify/:reference", async (req, res) => {
 
     if (metadata.loyaltyReference) {
       const redemption = await pool.query(
-        "SELECT customer_id FROM loyalty_redemptions WHERE reference = $1 AND status = 'PENDING' AND expires_at > NOW() LIMIT 1",
+        "SELECT customer_id FROM loyalty_redemptions WHERE reference = $1 AND status IN ('PENDING','REDEEMED') AND (status = 'REDEEMED' OR expires_at > NOW()) LIMIT 1",
         [metadata.loyaltyReference]
       );
       if (!redemption.rows.length) {

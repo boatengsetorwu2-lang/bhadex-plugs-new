@@ -393,6 +393,7 @@ body {
     <a href="#track">Track Order</a>
     <a href="#orders">My Orders</a>
     <a href="#rewards">Loyalty Rewards</a>
+    <a href="#wishlist">Wishlist</a>
     <a href="#profile">My Profile</a>
     <a href="#security">Security</a>
     <a href="#support">Support</a>
@@ -462,6 +463,17 @@ body {
       <p class="muted">Loading your points history...</p>
     </div>
     <div id="loyaltyMessage" class="message" role="status"></div>
+  </section>
+
+  <!-- CUSTOMER WISHLIST -->
+  <section class="dashboard-card" id="wishlist">
+    <h2>My Wishlist</h2>
+    <p class="muted">Subscriptions you've saved from the marketplace.</p>
+    <div id="wishlistItems">
+      <p class="muted">Loading your wishlist...</p>
+    </div>
+    <div id="wishlistMessage" class="message" role="status"></div>
+    <a href="marketplace.html" class="primary-button" style="display:inline-block;text-decoration:none;margin-top:12px;">Explore Marketplace</a>
   </section>
 
   <!-- TRACK ORDER -->
@@ -647,6 +659,7 @@ async function loadAccount() {
 
     await loadOrders();
     await loadRewards();
+    await loadWishlist();
 
   } catch (error) {
     showMessage("message", error.message);
@@ -715,6 +728,71 @@ async function loadRewards() {
     pointsElement.textContent = "—";
     ordersElement.textContent = "—";
     historyElement.textContent = error.message || "Unable to load your points history.";
+  }
+}
+
+// LOAD CUSTOMER WISHLIST
+async function loadWishlist() {
+  const container = document.getElementById("wishlistItems");
+  try {
+    const result = await apiRequest("/api/features/customer/wishlist");
+    const items = Array.isArray(result.wishlist) ? result.wishlist : [];
+    container.replaceChildren();
+
+    if (!items.length) {
+      const empty = document.createElement("p");
+      empty.className = "muted";
+      empty.textContent = "Your wishlist is empty. Save subscriptions from the marketplace to see them here.";
+      container.appendChild(empty);
+      return;
+    }
+
+    items.forEach(item => {
+      const row = document.createElement("div");
+      row.className = "order";
+      const name = document.createElement("p");
+      const strong = document.createElement("strong");
+      strong.textContent = item.product_name;
+      name.appendChild(strong);
+
+      const saved = document.createElement("p");
+      saved.className = "muted";
+      saved.textContent = item.created_at
+        ? "Saved: " + new Date(item.created_at).toLocaleDateString()
+        : "Saved to your wishlist";
+
+      const actions = document.createElement("div");
+      actions.style.display = "flex";
+      actions.style.flexWrap = "wrap";
+      actions.style.gap = "10px";
+
+      const shop = document.createElement("a");
+      shop.href = "marketplace.html";
+      shop.className = "secondary-button";
+      shop.style.textDecoration = "none";
+      shop.textContent = "View in Marketplace";
+
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "secondary-button";
+      remove.textContent = "Remove";
+      remove.addEventListener("click", async () => {
+        remove.disabled = true;
+        try {
+          await apiRequest("/api/features/customer/wishlist/" + encodeURIComponent(item.product_name), { method: "DELETE" });
+          await loadWishlist();
+        } catch (error) {
+          showMessage("wishlistMessage", error.message);
+          remove.disabled = false;
+        }
+      });
+
+      actions.append(shop, remove);
+      row.append(name, saved, actions);
+      container.appendChild(row);
+    });
+  } catch (error) {
+    container.textContent = error.message || "Unable to load your wishlist.";
   }
 }
 

@@ -238,12 +238,35 @@ module.exports = function createFeatureRouter({ pool, requireCustomer, requireAd
           "UPDATE customers SET referral_code = $1 WHERE id = $2 AND referral_code IS NULL RETURNING referral_code",
           [code, customer.id]
         );
-        customer.referral_code = updated.rows[0]?.referral_code || code;
+        if (updated.rows[0]?.referral_code) customer.referral_code = updated.rows[0].referral_code;
+        else {
+          const refreshed = await pool.query("SELECT referral_code FROM customers WHERE id=$1", [customer.id]);
+          customer.referral_code = refreshed.rows[0]?.referral_code;
+        }
       }
-      res.json({ referralCode: customer.referral_code });
+      const referrals = await pool.query(
+        `SELECT r.id, r.status, r.points_awarded, r.created_at, r.rewarded_at,
+                c.name AS referred_name
+         FROM customer_referrals r
+         JOIN customers c ON c.id = r.referred_customer_id
+         WHERE r.referrer_customer_id = $1
+         ORDER BY r.created_at DESC LIMIT 100`,
+        [customer.id]
+      );
+      const total = referrals.rows.length;
+      const rewarded = referrals.rows.filter(row => row.status === "REWARDED").length;
+      res.json({
+        referralCode: customer.referral_code,
+        referralLink: "https://bhadex-plugs.onrender.com/register.html?ref=" + encodeURIComponent(customer.referral_code),
+        totalReferrals: total,
+        successfulReferrals: rewarded,
+        pointsEarned: referrals.rows.reduce((sum, row) => sum + Number(row.points_awarded || 0), 0),
+        rewardPoints: 100,
+        referrals: referrals.rows
+      });
     } catch (error) {
       console.error("Referral load error:", error.message);
-      res.status(500).json({ error: "Unable to load your referral code." });
+      res.status(500).json({ error: "Unable to load your referral information." });
     }
   });
 
@@ -430,6 +453,25 @@ module.exports = function createFeatureRouter({ pool, requireCustomer, requireAd
     } catch (error) {
       console.error("Customer management error:", error.message);
       res.status(500).json({ error: "Unable to load customers." });
+    }
+  });
+
+  router.get("/admin/referrals", requireAdmin, async (req, res) => {
+    try {
+      const result = await pool.query(
+        `SELECT r.id, r.status, r.points_awarded, r.referral_code,
+                r.created_at, r.rewarded_at, r.qualifying_order_reference,
+                referrer.name AS referrer_name, referrer.email AS referrer_email,
+                referred.name AS referred_name, referred.email AS referred_email
+         FROM customer_referrals r
+         JOIN customers referrer ON referrer.id = r.referrer_customer_id
+         JOIN customers referred ON referred.id = r.referred_customer_id
+         ORDER BY r.created_at DESC LIMIT 500`
+      );
+      res.json({ referrals: result.rows });
+    } catch (error) {
+      console.error("Admin referrals load error:", error.message);
+      res.status(500).json({ error: "Unable to load referral records." });
     }
   });
 

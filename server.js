@@ -583,7 +583,11 @@ app.use(helmet({
   contentSecurityPolicy: false
 }));
 
-app.use(express.static(path.join(__dirname, "public")));
+app.use(express.static(path.join(__dirname, "public"), {
+  maxAge: "5m",
+  etag: true,
+  lastModified: true
+}));
 
 // ENVIRONMENT CHECKS
 if (!process.env.ADMIN_PASSWORD || !process.env.SESSION_SECRET) {

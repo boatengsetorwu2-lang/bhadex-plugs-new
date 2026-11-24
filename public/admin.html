@@ -452,6 +452,15 @@
         padding: 15px;
       }
     }
+    .inventory-alerts { display: grid; gap: 8px; margin: 12px 0; }
+    .inventory-alert { padding: 11px 13px; border: 1px solid #8c4b22; border-radius: 9px; background: rgba(190,95,30,.12); color: #ffd0a8; }
+    .inventory-alert.critical { border-color: #a33; background: rgba(180,35,35,.13); color: #ffaaaa; }
+    .inventory-stock-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+    .inventory-stock-controls label { display: grid; gap: 4px; color: #aaa; font-size: 11px; }
+    .inventory-stock-controls input { width: 105px; min-width: 0; padding: 9px; }
+    .inventory-row { flex-wrap: wrap; }
+    .inventory-row > div:first-child { flex: 1 1 180px; }
+    .inventory-row > button { flex: 0 0 auto; }
     .inventory-list { display: grid; gap: 10px; margin-top: 14px; }
     .inventory-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 13px; border: 1px solid #303030; border-radius: 10px; background: #111; }
     .inventory-product { font-weight: 700; }
@@ -568,6 +577,7 @@
         <h2>Product Inventory</h2>
         <p class="muted">Control which subscriptions customers can purchase. Changes are saved automatically.</p>
         <p id="inventoryMessage" class="message" aria-live="polite">Inventory will load after login.</p>
+        <div id="inventoryAlerts" class="inventory-alerts" aria-live="polite"></div>
         <div id="inventoryList" class="inventory-list"></div>
       </section>
 
@@ -1133,36 +1143,128 @@
     async function loadInventory() {
       const message = document.getElementById("inventoryMessage");
       const list = document.getElementById("inventoryList");
+      const alerts = document.getElementById("inventoryAlerts");
       list.replaceChildren();
+      alerts.replaceChildren();
       message.textContent = "Loading product inventory...";
       try {
         const data = await request("/api/admin/inventory");
         const products = data.products || [];
+        const lowStock = data.lowStock || [];
         if (!products.length) {
           message.textContent = "No inventory products were returned.";
           return;
         }
-        message.textContent = "Use the buttons to change product availability.";
+
+        if (lowStock.length) {
+          const heading = document.createElement("div");
+          heading.className = "inventory-alert critical";
+          heading.textContent = lowStock.length + " inventory alert(s) need attention.";
+          alerts.appendChild(heading);
+          lowStock.forEach(product => {
+            const alert = document.createElement("div");
+            alert.className = "inventory-alert" + (product.stockStatus === "OUT_OF_STOCK" ? " critical" : "");
+            alert.textContent = product.name + (product.stockStatus === "OUT_OF_STOCK"
+              ? " has zero stock."
+              : " is low: " + product.stockQuantity + " remaining (alert at " + product.lowStockThreshold + ").");
+            alerts.appendChild(alert);
+          });
+        } else {
+          const ok = document.createElement("div");
+          ok.className = "inventory-alert";
+          ok.textContent = "No low-stock alerts. Products without a quantity set are not included.";
+          alerts.appendChild(ok);
+        }
+
+        message.textContent = "Set each product's quantity and alert threshold. Quantity is a manual stock record.";
         products.forEach(product => {
           const row = document.createElement("div");
           row.className = "inventory-row";
+
           const info = document.createElement("div");
           const name = document.createElement("div");
           name.className = "inventory-product";
           name.textContent = product.name;
+
           const status = document.createElement("span");
           status.className = "inventory-state " + (product.isAvailable ? "available" : "unavailable");
-          status.textContent = product.isAvailable ? "Available" : "Out of Stock";
-          info.appendChild(name);
-          info.appendChild(status);
-          const button = document.createElement("button");
-          button.type = "button";
-          button.className = product.isAvailable ? "secondary" : "primary";
-          button.textContent = product.isAvailable ? "Mark Out of Stock" : "Mark Available";
-          button.addEventListener("click", async () => {
-            button.disabled = true;
-            button.textContent = "Saving...";
-            message.textContent = "Updating " + product.name + "...";
+          status.textContent = product.isAvailable ? "Purchasing enabled" : "Purchasing disabled";
+
+          const stockStatus = document.createElement("span");
+          stockStatus.className = "inventory-state " +
+            (product.stockStatus === "LOW_STOCK" || product.stockStatus === "OUT_OF_STOCK" ? "unavailable" : "available");
+          stockStatus.textContent = product.stockStatus === "NOT_TRACKED"
+            ? "Quantity not set"
+            : product.stockStatus === "OUT_OF_STOCK"
+              ? "Zero stock"
+              : product.stockStatus === "LOW_STOCK"
+                ? "Low stock: " + product.stockQuantity + " left"
+                : "In stock: " + product.stockQuantity;
+          info.append(name, status, stockStatus);
+
+          const controls = document.createElement("div");
+          controls.className = "inventory-stock-controls";
+
+          const quantityLabel = document.createElement("label");
+          quantityLabel.textContent = "Stock quantity";
+          const quantityInput = document.createElement("input");
+          quantityInput.type = "number";
+          quantityInput.min = "0";
+          quantityInput.step = "1";
+          quantityInput.placeholder = "Not set";
+          quantityInput.value = product.stockQuantity === null ? "" : String(product.stockQuantity);
+          quantityLabel.appendChild(quantityInput);
+
+          const thresholdLabel = document.createElement("label");
+          thresholdLabel.textContent = "Alert when at or below";
+          const thresholdInput = document.createElement("input");
+          thresholdInput.type = "number";
+          thresholdInput.min = "0";
+          thresholdInput.step = "1";
+          thresholdInput.value = String(product.lowStockThreshold);
+          thresholdLabel.appendChild(thresholdInput);
+
+          const saveStock = document.createElement("button");
+          saveStock.type = "button";
+          saveStock.className = "primary";
+          saveStock.textContent = "Save Stock";
+          saveStock.addEventListener("click", async () => {
+            const quantity = quantityInput.value.trim();
+            const threshold = thresholdInput.value.trim();
+            if ((quantity !== "" && (!Number.isSafeInteger(Number(quantity)) || Number(quantity) < 0)) ||
+                threshold === "" || !Number.isSafeInteger(Number(threshold)) || Number(threshold) < 0) {
+              message.textContent = "Enter a whole-number stock quantity (or leave it blank) and a valid alert threshold.";
+              return;
+            }
+            saveStock.disabled = true;
+            saveStock.textContent = "Saving...";
+            try {
+              await request("/api/admin/inventory/" + encodeURIComponent(product.name), {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  stockQuantity: quantity === "" ? null : Number(quantity),
+                  lowStockThreshold: Number(threshold)
+                })
+              });
+              message.textContent = product.name + " stock settings saved.";
+              await loadInventory();
+            } catch (error) {
+              message.textContent = "Could not save stock: " + error.message;
+              saveStock.disabled = false;
+              saveStock.textContent = "Save Stock";
+            }
+          });
+
+          controls.append(quantityLabel, thresholdLabel, saveStock);
+
+          const availabilityButton = document.createElement("button");
+          availabilityButton.type = "button";
+          availabilityButton.className = product.isAvailable ? "secondary" : "primary";
+          availabilityButton.textContent = product.isAvailable ? "Disable Purchases" : "Enable Purchases";
+          availabilityButton.addEventListener("click", async () => {
+            availabilityButton.disabled = true;
+            availabilityButton.textContent = "Saving...";
             try {
               await request("/api/admin/inventory/" + encodeURIComponent(product.name), {
                 method: "PATCH",
@@ -1172,13 +1274,13 @@
               message.textContent = product.name + " availability updated.";
               await loadInventory();
             } catch (error) {
-              message.textContent = "Could not update inventory: " + error.message;
-              button.disabled = false;
-              button.textContent = product.isAvailable ? "Mark Out of Stock" : "Mark Available";
+              message.textContent = "Could not update availability: " + error.message;
+              availabilityButton.disabled = false;
+              availabilityButton.textContent = product.isAvailable ? "Disable Purchases" : "Enable Purchases";
             }
           });
-          row.appendChild(info);
-          row.appendChild(button);
+
+          row.append(info, controls, availabilityButton);
           list.appendChild(row);
         });
       } catch (error) {

@@ -89,6 +89,7 @@ const searchInput = document.getElementById("search");
 
 let activeCategory = "All";
 let productAvailability = Object.create(null);
+let productReviews = [];
 
 const RECENT_STORAGE_KEY = "bhadexRecentlyViewed";
 const MAX_RECENT_PRODUCTS = 6;
@@ -164,6 +165,21 @@ premiumStyles.textContent = `
   }
   .wishlist-btn:disabled { opacity: .65; cursor: wait; }
 
+  .product-rating {
+    margin: 8px 0 12px;
+    color: #ffd166;
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .product-rating span { color: #aaa; font-weight: 400; margin-left: 5px; }
+  .public-review {
+    padding: 14px 0;
+    border-top: 1px solid rgba(255,255,255,.12);
+  }
+  .public-review strong { color: #fff; }
+  .public-review .review-stars { color: #ffd166; letter-spacing: 2px; margin: 5px 0; }
+  .public-review p { color: #ccc; line-height: 1.6; overflow-wrap: anywhere; }
+  .public-review small { color: #999; }
   .package-select {
     width: 100%;
     background: #151515 !important;
@@ -1127,6 +1143,61 @@ document.addEventListener("keydown", event => {
   }
 });
 
+function getProductRatingText(productName) {
+  const matching = productReviews.filter(item => item.product === productName);
+  if (!matching.length) return '☆☆☆☆☆ <span>No reviews yet</span>';
+  const average = matching.reduce((sum, item) => sum + Number(item.rating || 0), 0) / matching.length;
+  const rounded = Math.round(average);
+  return '★'.repeat(rounded) + '☆'.repeat(5 - rounded) +
+    ' <span>' + average.toFixed(1) + '/5 · ' + matching.length +
+    (matching.length === 1 ? ' review' : ' reviews') + '</span>';
+}
+
+function renderPublicReviews() {
+  const container = document.getElementById("publicReviewsList");
+  if (!container) return;
+  container.replaceChildren();
+  if (!productReviews.length) {
+    const empty = document.createElement("p");
+    empty.textContent = "No approved reviews yet. Customer reviews will appear here after approval.";
+    container.appendChild(empty);
+    return;
+  }
+  productReviews.forEach(item => {
+    const card = document.createElement("article");
+    card.className = "public-review";
+    const heading = document.createElement("strong");
+    heading.textContent = item.product || "Subscription";
+    const stars = document.createElement("div");
+    stars.className = "review-stars";
+    const rating = Math.max(1, Math.min(5, Number(item.rating) || 0));
+    stars.textContent = "★".repeat(rating) + "☆".repeat(5 - rating);
+    const copy = document.createElement("p");
+    copy.textContent = item.review || "";
+    const date = document.createElement("small");
+    date.textContent = item.created_at ? new Date(item.created_at).toLocaleDateString() : "";
+    card.append(heading, stars, copy, date);
+    container.appendChild(card);
+  });
+}
+
+async function loadPublicReviews() {
+  try {
+    const response = await fetch("/api/features/reviews", { cache: "no-store" });
+    if (!response.ok) throw new Error("Reviews request failed.");
+    const data = await response.json();
+    productReviews = Array.isArray(data.reviews) ? data.reviews : [];
+    renderPublicReviews();
+    document.querySelectorAll("[data-rating-product]").forEach(element => {
+      element.innerHTML = getProductRatingText(element.dataset.ratingProduct);
+    });
+  } catch (error) {
+    const container = document.getElementById("publicReviewsList");
+    if (container) container.textContent = "Customer reviews are temporarily unavailable.";
+    console.warn("Public reviews could not be loaded:", error.message);
+  }
+}
+
 // RENDER PRODUCTS
 function renderProducts() {
   if (!productGrid) return;
@@ -1190,6 +1261,8 @@ function renderProducts() {
 
         <h3 class="product-name">${escapeHTML(product.name)}</h3>
         <p class="product-description">${escapeHTML(product.description)}</p>
+        <p class="product-rating" data-rating-product="${escapeHTML(product.name)}">${getProductRatingText(product.name)}</p>
+
 
         <button class="details-btn" type="button" data-details="${escapeHTML(product.name)}">
           View Product Details
@@ -1311,3 +1384,4 @@ async function loadProductAvailability() {
 renderProducts();
 renderRecentlyViewed();
 loadProductAvailability();
+loadPublicReviews();

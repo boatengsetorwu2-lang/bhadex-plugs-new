@@ -5,7 +5,7 @@ const products = [
     logo: "https://cdn.simpleicons.org/netflix/E50914",
     category: "Entertainment",
     prices: [35, 90, 170],
-    description: "Enjoy movies, TV shows and award-winning Netflix Originals.",
+    description: "Browse Netflix subscription options for streaming movies, TV series and Netflix Originals. Explore available package durations at BHADEX PLUGS and review the plan details before continuing.",
     benefits: ["Access to movies and TV series", "Netflix Original productions", "Downloads where supported", "Streaming quality based on your plan"]
   },
   {
@@ -13,7 +13,7 @@ const products = [
     logo: "https://cdn.simpleicons.org/youtube/FF0000",
     category: "Entertainment",
     prices: [20, 55, 100],
-    description: "Enjoy YouTube with fewer interruptions and extra playback features.",
+    description: "Explore YouTube Premium options with features such as ad-free viewing, background play and offline downloads where supported. Compare the available subscription durations at BHADEX PLUGS.",
     benefits: ["Ad-free YouTube viewing", "Background play", "Offline downloads", "YouTube Music Premium benefits"]
   },
   {
@@ -21,7 +21,7 @@ const products = [
     logo: "https://cdn.simpleicons.org/spotify/1DB954",
     category: "Entertainment",
     prices: [18, 50, 95],
-    description: "Enjoy your favourite music with Premium listening features.",
+    description: "Discover Spotify Premium options for ad-free music listening, offline playback and on-demand music features. Compare available durations and choose the package that suits your listening needs.",
     benefits: ["Ad-free music listening", "Offline listening", "On-demand song selection", "Higher audio quality options"]
   },
   {
@@ -29,7 +29,7 @@ const products = [
     logo: "https://www.google.com/s2/favicons?domain=canva.com&sz=128",
     category: "Productivity",
     prices: [25, 70, 135],
-    description: "Create professional designs with Canva's premium creative tools.",
+    description: "Explore Canva Pro for graphic design, presentations, social media content and other creative projects. Depending on plan availability, premium tools may include templates, design assets and background editing features.",
     benefits: ["Premium templates", "Background remover", "Premium photos and graphics", "Design resizing tools", "AI design features"]
   },
   {
@@ -37,7 +37,7 @@ const products = [
     logo: "https://www.google.com/s2/favicons?domain=openai.com&sz=128",
     category: "Productivity",
     prices: [45],
-    description: "Get access to additional ChatGPT capabilities and higher usage limits.",
+    description: "Explore ChatGPT Plus, a paid ChatGPT plan that offers expanded access to selected AI tools and higher usage limits than the free plan. Available features and limits may change over time.",
     benefits: ["Access to advanced AI capabilities", "Higher usage limits", "Image generation", "Document and file analysis", "Advanced research tools"]
   },
   {
@@ -45,7 +45,7 @@ const products = [
     logo: "https://www.google.com/s2/favicons?domain=microsoft.com&sz=128",
     category: "Productivity",
     prices: [30, 85, 160],
-    description: "Work smarter with Microsoft's productivity applications.",
+    description: "Explore Microsoft 365 options for productivity with applications such as Word, Excel and PowerPoint, plus OneDrive cloud storage and collaboration features depending on the selected plan.",
     benefits: ["Word, Excel and PowerPoint features", "OneDrive cloud storage", "File syncing", "Collaboration tools"]
   },
   {
@@ -53,7 +53,7 @@ const products = [
     logo: "https://www.google.com/s2/favicons?domain=disneyplus.com&sz=128",
     category: "Entertainment",
     prices: [25, 70, 135],
-    description: "Stream entertainment from Disney and its popular brands.",
+    description: "Browse Disney+ subscription options for films and series from Disney, Pixar, Marvel and Star Wars, with catalogue availability depending on your country and the current service plan.",
     benefits: ["Disney movies and series", "Marvel entertainment", "Star Wars content", "Pixar movies", "Downloads where supported"]
   },
   {
@@ -61,7 +61,7 @@ const products = [
     logo: "https://www.google.com/s2/favicons?domain=primevideo.com&sz=128",
     category: "Entertainment",
     prices: [20, 55, 105],
-    description: "Explore movies, television shows and Amazon Originals.",
+    description: "Discover Prime Video options for watching movies, television series and Amazon Original productions. Available titles, streaming features and downloads depend on region and plan conditions.",
     benefits: ["Movies and TV shows", "Amazon Original productions", "Supported high-quality streaming", "Downloads where supported"]
   },
   {
@@ -69,7 +69,7 @@ const products = [
     logo: "https://cdn.simpleicons.org/telegram/26A5E4",
     category: "Social",
     prices: [20, 55, 105],
-    description: "Unlock additional features for your Telegram experience.",
+    description: "Explore Telegram Premium options for extra messaging features, including larger upload limits, faster downloads, premium stickers and additional account features.",
     benefits: ["Faster downloads", "Increased upload limits", "Premium stickers and reactions", "Premium profile badge", "Voice-to-text features", "Additional chat features"]
   },
   {
@@ -77,7 +77,7 @@ const products = [
     logo: "https://cdn.simpleicons.org/googleone/4285F4",
     category: "Cloud",
     prices: [15, 40, 75],
-    description: "Get additional cloud storage for your Google account.",
+    description: "Compare Google One storage options for additional space across Google Drive, Gmail and Google Photos, with plan benefits and family-sharing availability depending on the selected package.",
     benefits: ["More Google storage", "Store photos and videos", "Additional Gmail storage", "Device backups", "Eligible family sharing"]
   }
 ];

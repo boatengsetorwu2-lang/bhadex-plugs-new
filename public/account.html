@@ -768,12 +768,16 @@ async function loadRewards() {
       const title = document.createElement("p");
       const strong = document.createElement("strong");
       const points = Number(entry.points || 0);
-      strong.textContent = (points > 0 ? "+" : "") + points.toLocaleString() + " points" + (points < 0 ? " redeemed" : " earned");
+      strong.textContent = String(entry.order_reference || "").startsWith("REF-")
+        ? "Referral bonus " + (points > 0 ? "+" : "") + points.toLocaleString() + " points"
+        : (points > 0 ? "+" : "") + points.toLocaleString() + " points" + (points < 0 ? " redeemed" : " earned");
       title.appendChild(strong);
 
       const reference = document.createElement("p");
       reference.className = "reference";
-      reference.textContent = "Order reference: " + (entry.order_reference || "Not available");
+      reference.textContent = String(entry.order_reference || "").startsWith("REF-")
+        ? "Referral reward"
+        : "Order reference: " + (entry.order_reference || "Not available");
 
       const date = document.createElement("p");
       date.className = "muted";

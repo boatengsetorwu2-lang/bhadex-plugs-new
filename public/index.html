@@ -254,6 +254,36 @@
       html { scroll-behavior: auto; }
       *, *::before, *::after { transition-duration: .01ms !important; }
     }
+
+    .newsletter-section {
+      margin: 70px auto;
+      max-width: 1120px;
+      padding: 54px 6%;
+      border: 1px solid rgba(255,38,61,.3);
+      border-radius: 22px;
+      background: linear-gradient(135deg,#191010,#101010 65%);
+      text-align: center;
+    }
+    .newsletter-section h2 { margin: 10px 0 12px; font-size: clamp(27px,4vw,42px); }
+    .newsletter-section > p { color: #aaa; line-height: 1.7; }
+    .newsletter-form { display: flex; gap: 10px; max-width: 620px; margin: 24px auto 12px; }
+    .newsletter-form input[type="email"] {
+      flex: 1; min-width: 0; padding: 15px 16px; border-radius: 9px;
+      border: 1px solid rgba(255,255,255,.18); background: #080808; color: #fff;
+    }
+    .newsletter-form button {
+      border: 0; border-radius: 9px; padding: 14px 20px;
+      background: #ff263d; color: #fff; font-weight: 800; cursor: pointer;
+    }
+    .newsletter-consent { display:flex; justify-content:center; align-items:flex-start; gap:9px; color:#aaa; font-size:12px; line-height:1.5; }
+    .newsletter-consent input { margin-top:2px; }
+    .newsletter-message { min-height:20px; margin-top:12px; color:#fff; font-size:13px; }
+    @media(max-width:600px) {
+      .newsletter-form { flex-direction:column; }
+      .newsletter-form button { width:100%; }
+      .newsletter-section { margin: 45px 15px; padding: 38px 20px; }
+    }
+
   </style>
 </head>
 
@@ -410,6 +440,22 @@
     </div>
   </section>
 
+
+  <section class="newsletter-section" aria-labelledby="newsletterTitle">
+    <p class="eyebrow">STAY IN THE LOOP</p>
+    <h2 id="newsletterTitle">GET THE LATEST FROM <span class="red">BHADEX.</span></h2>
+    <p>Receive occasional updates about new services, store announcements and special offers.</p>
+    <form class="newsletter-form" id="newsletterForm">
+      <input type="email" id="newsletterEmail" name="email" maxlength="255" placeholder="Enter your email address" autocomplete="email" required aria-label="Email address">
+      <button type="submit" id="newsletterSubmit">Subscribe</button>
+    </form>
+    <label class="newsletter-consent">
+      <input type="checkbox" id="newsletterConsent" required>
+      <span>I agree to receive occasional email updates from BHADEX PLUGS. I can ask the store to remove my email at any time.</span>
+    </label>
+    <p class="newsletter-message" id="newsletterMessage" role="status" aria-live="polite"></p>
+  </section>
+
   <section class="bottom-cta">
     <p class="eyebrow">READY WHEN YOU ARE</p>
     <h2>FIND YOUR NEXT<br><span class="red">DIGITAL UPGRADE.</span></h2>
@@ -454,6 +500,44 @@
     Availability and service terms may vary.
   </p>
 </footer>
+
+
+<script>
+  (function () {
+    const form = document.getElementById("newsletterForm");
+    if (!form) return;
+    form.addEventListener("submit", async function (event) {
+      event.preventDefault();
+      const email = document.getElementById("newsletterEmail").value.trim();
+      const consent = document.getElementById("newsletterConsent").checked;
+      const message = document.getElementById("newsletterMessage");
+      const button = document.getElementById("newsletterSubmit");
+      if (!consent) {
+        message.textContent = "Please confirm that you want to receive email updates.";
+        return;
+      }
+      button.disabled = true;
+      button.textContent = "Submitting...";
+      message.textContent = "";
+      try {
+        const response = await fetch("/api/features/newsletter", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, consent })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "Unable to subscribe right now.");
+        message.textContent = data.message || "Thanks for subscribing.";
+        form.reset();
+      } catch (error) {
+        message.textContent = error.message;
+      } finally {
+        button.disabled = false;
+        button.textContent = "Subscribe";
+      }
+    });
+  })();
+</script>
 
 <script src="announcement-banner.js" defer></script>
 </body>

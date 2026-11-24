@@ -1836,6 +1836,17 @@ app.patch(
         });
       }
 
+      if (oldStatus !== fulfillmentStatus) {
+        try {
+          await pool.query(
+            "INSERT INTO admin_activity_log(actor, action, details) VALUES($1, $2, $3)",
+            ["Admin", "Order delivery status changed", reference + " · " + oldStatus + " → " + fulfillmentStatus]
+          );
+        } catch (logError) {
+          console.error("Admin activity log error:", logError.message);
+        }
+      }
+
       let statusEmailSent = false;
       let statusEmailMessage = "The order status was unchanged, so no email was sent.";
       if (oldStatus !== fulfillmentStatus) {

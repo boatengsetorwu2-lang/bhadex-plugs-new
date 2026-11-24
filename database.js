@@ -290,6 +290,25 @@ async function initializeDatabase() {
     );
   }
 
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS live_chat_conversations (
+      id BIGSERIAL PRIMARY KEY,
+      customer_id BIGINT NOT NULL UNIQUE REFERENCES customers(id) ON DELETE CASCADE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS live_chat_messages (
+      id BIGSERIAL PRIMARY KEY,
+      conversation_id BIGINT NOT NULL REFERENCES live_chat_conversations(id) ON DELETE CASCADE,
+      sender VARCHAR(10) NOT NULL CHECK (sender IN ('CUSTOMER','ADMIN')),
+      message TEXT NOT NULL,
+      read_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS live_chat_messages_conversation_created_idx
+      ON live_chat_messages(conversation_id, created_at ASC);
+  `);
+
   console.log("BHADEX PLUGS database initialized.");
 }
 

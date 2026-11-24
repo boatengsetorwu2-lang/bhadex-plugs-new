@@ -1413,8 +1413,10 @@ app.post("/api/customer/email-change/confirm", requireCustomer, async (req, res)
       await client.query("ROLLBACK");
       return res.status(409).json({ error: "That email address is already linked to another account." });
     }
+    const oldEmail = await client.query("SELECT email FROM customers WHERE id=$1 FOR UPDATE", [req.session.customerId]);
+    const previousEmail = oldEmail.rows[0]?.email;
     await client.query("UPDATE customers SET email=$1,email_verified=TRUE,updated_at=NOW() WHERE id=$2", [item.new_email, req.session.customerId]);
-    await client.query("UPDATE orders SET customer_email=$1 WHERE LOWER(customer_email)=LOWER((SELECT email FROM customers WHERE id=$2)) AND FALSE", [item.new_email, req.session.customerId]).catch(()=>{});
+    if (previousEmail) await client.query("UPDATE orders SET customer_email=$1 WHERE LOWER(customer_email)=LOWER($2)", [item.new_email, previousEmail]);
     await client.query("DELETE FROM customer_email_changes WHERE customer_id=$1", [req.session.customerId]);
     await client.query("COMMIT");
     return res.json({ success: true, email: item.new_email, message: "Your account email has been updated." });

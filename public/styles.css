@@ -109,27 +109,73 @@ img {
   letter-spacing: 2px;
 }
 
-nav {
+/* CUSTOMER NAVIGATION - CLEAR, HIGH-VISIBILITY LINKS */
+.topbar {
+  flex-wrap: wrap;
+}
+
+.topbar nav {
   display: flex;
   align-items: center;
-  gap: 25px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 9px;
   font-size: 13px;
 }
 
-nav a {
-  color: #c7c7c7;
-  transition: .2s;
+.topbar nav a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 9px 13px;
+  border: 1px solid rgba(255,255,255,.13);
+  border-radius: 10px;
+  background: #151515;
+  color: #f1f1f1;
+  font-weight: 800;
+  white-space: nowrap;
+  transition: .2s ease;
 }
 
-nav a:hover,
-nav a.active {
-  color: var(--red);
+.topbar nav a:hover {
+  border-color: var(--red);
+  background: #281116;
+  color: #fff;
+  box-shadow: 0 0 14px rgba(255,38,61,.2);
+  transform: translateY(-1px);
 }
 
-.nav-cta {
-  border: 1px solid var(--red);
-  padding: 10px 16px;
-  border-radius: 30px;
+.topbar nav a.active {
+  border-color: var(--red);
+  background: linear-gradient(120deg, #ff263d, #bd001f);
+  color: #fff;
+  box-shadow: 0 5px 16px rgba(255,38,61,.24);
+}
+
+.topbar nav a.create-account {
+  border-color: rgba(255,255,255,.32);
+  background: #242424;
+  color: #fff;
+}
+
+.topbar nav a.create-account:hover {
+  border-color: #fff;
+  background: #333;
+}
+
+.topbar nav a.nav-cta {
+  border-color: var(--red);
+  padding-inline: 17px;
+  border-radius: 10px;
+  background: linear-gradient(120deg, #ff5265, #c90020);
+  color: #fff;
+  box-shadow: 0 7px 20px rgba(255,38,61,.28);
+}
+
+.topbar nav a.nav-cta:hover {
+  background: linear-gradient(120deg, #ff7180, #df0028);
+  box-shadow: 0 9px 24px rgba(255,38,61,.4);
 }
 
 /* =========================================
@@ -787,15 +833,21 @@ textarea {
     align-items: center;
   }
 
-  nav {
-    gap: 12px;
-    flex-wrap: wrap;
-    justify-content: flex-end;
+  .topbar nav {
+    width: 100%;
+    justify-content: center;
+    gap: 7px;
     font-size: 11px;
   }
 
-  .nav-cta {
-    display: none;
+  .topbar nav a {
+    min-height: 38px;
+    padding: 8px 10px;
+    font-size: 11px;
+  }
+
+  .topbar nav a.nav-cta {
+    display: inline-flex;
   }
 
   .brand {

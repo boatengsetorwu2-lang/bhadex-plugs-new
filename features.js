@@ -89,6 +89,7 @@ module.exports = function createFeatureRouter({ pool, requireCustomer, requireAd
   router.post("/newsletter", async (req, res) => {
     try {
       const email = clean(req.body?.email, 255).toLowerCase();
+      if (req.body?.consent !== true) return res.status(400).json({ error: "Please confirm that you want to receive email updates." });
       if (!validEmail(email)) return res.status(400).json({ error: "Enter a valid email address." });
       await pool.query(
         `INSERT INTO newsletter_subscribers(email)
@@ -709,11 +710,27 @@ module.exports = function createFeatureRouter({ pool, requireCustomer, requireAd
 
   router.get("/admin/newsletter", requireAdmin, async (req, res) => {
     try {
-      const result = await pool.query("SELECT email, created_at FROM newsletter_subscribers WHERE active=TRUE ORDER BY created_at DESC LIMIT 1000");
+      const result = await pool.query("SELECT id, email, created_at FROM newsletter_subscribers WHERE active=TRUE ORDER BY created_at DESC LIMIT 1000");
       res.json({ subscribers: result.rows });
     } catch (error) {
       console.error("Newsletter admin error:", error.message);
       res.status(500).json({ error: "Unable to load subscribers." });
+    }
+  });
+
+  router.delete("/admin/newsletter/:id", requireAdmin, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (!Number.isSafeInteger(id) || id < 1) return res.status(400).json({ error: "Invalid subscriber." });
+      const result = await pool.query(
+        "UPDATE newsletter_subscribers SET active=FALSE WHERE id=$1 AND active=TRUE RETURNING id",
+        [id]
+      );
+      if (!result.rows.length) return res.status(404).json({ error: "Subscriber not found." });
+      res.json({ success: true, message: "Subscriber removed." });
+    } catch (error) {
+      console.error("Newsletter removal error:", error.message);
+      res.status(500).json({ error: "Unable to remove subscriber." });
     }
   });
 

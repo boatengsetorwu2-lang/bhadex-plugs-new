@@ -410,7 +410,7 @@ body {
     <div class="dashboard-card" style="margin:18px 0 0;padding:20px;background:#10101c;">
       <h2 style="font-size:17px;">How to earn points</h2>
       <p class="muted">You earn 1 point for every GHS 1 spent on a paid order after it is marked as delivered. Pending and processing orders do not earn points yet.</p>
-      <p class="muted">Your points balance and earning history are shown below. Redeeming points for discounts is not available yet.</p>
+      <p class="muted">Redeem points at checkout: every 100 points gives GH₵1 off. Points are deducted only after a successful payment. Redemption is currently available in test mode only.</p>
     </div>
 
     <h2 style="margin-top:24px;">Points History</h2>
@@ -650,7 +650,8 @@ async function loadRewards() {
 
       const title = document.createElement("p");
       const strong = document.createElement("strong");
-      strong.textContent = "+" + Number(entry.points || 0).toLocaleString() + " points";
+      const points = Number(entry.points || 0);
+      strong.textContent = (points > 0 ? "+" : "") + points.toLocaleString() + " points" + (points < 0 ? " redeemed" : " earned");
       title.appendChild(strong);
 
       const reference = document.createElement("p");

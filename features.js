@@ -531,6 +531,29 @@ module.exports = function createFeatureRouter({ pool, requireCustomer, requireAd
     }
   });
 
+  router.post("/coupons/validate", async (req, res) => {
+    try {
+      const code = clean(req.body?.code, 30).toUpperCase().replace(/[^A-Z0-9_-]/g, "");
+      if (!code) return res.status(400).json({ error: "Enter a coupon code." });
+      const result = await pool.query(
+        `SELECT discount_percent
+         FROM store_coupons
+         WHERE code = $1 AND active = TRUE
+           AND (expires_at IS NULL OR expires_at > NOW())
+           AND (max_uses IS NULL OR uses < max_uses)
+         LIMIT 1`,
+        [code]
+      );
+      if (!result.rows.length) {
+        return res.status(400).json({ error: "This coupon is invalid, expired or has reached its usage limit." });
+      }
+      res.json({ valid: true, code, discountPercent: Number(result.rows[0].discount_percent) });
+    } catch (error) {
+      console.error("Coupon validation error:", error.message);
+      res.status(500).json({ error: "Unable to validate coupon right now." });
+    }
+  });
+
   router.get("/admin/coupons", requireAdmin, async (req, res) => {
     try {
       const result = await pool.query("SELECT id, code, discount_percent, active, expires_at, max_uses, uses FROM store_coupons ORDER BY created_at DESC LIMIT 200");
@@ -546,18 +569,39 @@ module.exports = function createFeatureRouter({ pool, requireCustomer, requireAd
       const code = clean(req.body?.code, 30).toUpperCase().replace(/[^A-Z0-9_-]/g, "");
       const discount = Number(req.body?.discountPercent);
       const maxUses = req.body?.maxUses == null || req.body.maxUses === "" ? null : Number(req.body.maxUses);
-      if (!code || !Number.isInteger(discount) || discount < 1 || discount > 50 || (maxUses !== null && (!Number.isInteger(maxUses) || maxUses < 1))) {
-        return res.status(400).json({ error: "Enter a code, a discount from 1–50%, and a valid optional use limit." });
+      const expiresAt = req.body?.expiresAt ? new Date(req.body.expiresAt) : null;
+      if (!code || !Number.isInteger(discount) || discount < 1 || discount > 50 ||
+          (maxUses !== null && (!Number.isInteger(maxUses) || maxUses < 1)) ||
+          (expiresAt && Number.isNaN(expiresAt.getTime()))) {
+        return res.status(400).json({ error: "Enter a code, a discount from 1–50%, and valid optional limits." });
       }
       const result = await pool.query(
-        "INSERT INTO store_coupons(code, discount_percent, max_uses) VALUES($1,$2,$3) RETURNING id, code, discount_percent, active, max_uses, uses",
-        [code, discount, maxUses]
+        "INSERT INTO store_coupons(code, discount_percent, max_uses, expires_at) VALUES($1,$2,$3,$4) RETURNING id, code, discount_percent, active, expires_at, max_uses, uses",
+        [code, discount, maxUses, expiresAt]
       );
       res.status(201).json({ coupon: result.rows[0] });
     } catch (error) {
       if (error.code === "23505") return res.status(409).json({ error: "That coupon code already exists." });
       console.error("Coupon create error:", error.message);
       res.status(500).json({ error: "Unable to create coupon." });
+    }
+  });
+
+  router.patch("/admin/coupons/:id", requireAdmin, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (!Number.isSafeInteger(id) || id < 1 || typeof req.body?.active !== "boolean") {
+        return res.status(400).json({ error: "Invalid coupon update." });
+      }
+      const result = await pool.query(
+        "UPDATE store_coupons SET active = $1 WHERE id = $2 RETURNING id, code, discount_percent, active, expires_at, max_uses, uses",
+        [req.body.active, id]
+      );
+      if (!result.rows.length) return res.status(404).json({ error: "Coupon not found." });
+      res.json({ coupon: result.rows[0] });
+    } catch (error) {
+      console.error("Coupon update error:", error.message);
+      res.status(500).json({ error: "Unable to update coupon." });
     }
   });
 

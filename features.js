@@ -1,5 +1,41 @@
 const express = require("express");
 
+const axios = require("axios");
+
+function escapeEmailHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, char => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[char]));
+}
+
+async function sendSupportReplyEmail({ to, ticketReference, subject, reply, status }) {
+  if (!process.env.RESEND_API_KEY || !process.env.RESEND_FROM_EMAIL) {
+    throw new Error("Resend email settings are missing.");
+  }
+  await axios.post("https://api.resend.com/emails", {
+    from: process.env.RESEND_FROM_EMAIL,
+    to: [to],
+    subject: "A reply has been added to your BHADEX PLUGS support ticket",
+    html: `
+      <div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;padding:28px;color:#222;">
+        <h2 style="color:#d71920;">BHADEX PLUGS</h2>
+        <h3>We have replied to your support ticket</h3>
+        <p><strong>Ticket:</strong> ${escapeEmailHtml(ticketReference)}</p>
+        <p><strong>Subject:</strong> ${escapeEmailHtml(subject)}</p>
+        <p><strong>Status:</strong> ${escapeEmailHtml(status.replace(/_/g, " "))}</p>
+        <p><strong>Our reply:</strong></p>
+        <div style="white-space:pre-wrap;background:#f4f4f4;padding:16px;border-radius:8px;">${escapeEmailHtml(reply)}</div>
+        <p>Log in to your BHADEX PLUGS account to view your support ticket.</p>
+      </div>
+    `
+  }, {
+    headers: {
+      Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+      "Content-Type": "application/json"
+    }
+  });
+}
+
 module.exports = function createFeatureRouter({ pool, requireCustomer, requireAdmin }) {
   const router = express.Router();
 
@@ -438,12 +474,38 @@ module.exports = function createFeatureRouter({ pool, requireCustomer, requireAd
       const reply = clean(req.body?.reply, 3000);
       if (!["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"].includes(status)) return res.status(400).json({ error: "Invalid ticket status." });
       if (!["LOW", "NORMAL", "HIGH"].includes(priority)) return res.status(400).json({ error: "Invalid ticket priority." });
+      const ticketId = Number(req.params.id);
+      if (!Number.isSafeInteger(ticketId) || ticketId < 1) {
+        return res.status(400).json({ error: "Invalid ticket reference." });
+      }
+      const existing = await pool.query(
+        "SELECT id, customer_email, subject, admin_reply FROM support_tickets WHERE id=$1 LIMIT 1",
+        [ticketId]
+      );
+      if (!existing.rows.length) return res.status(404).json({ error: "Ticket not found." });
+
       const result = await pool.query(
         "UPDATE support_tickets SET status=$1, priority=$2, admin_reply=$3, updated_at=NOW() WHERE id=$4 RETURNING id",
-        [status, priority, reply || null, Number(req.params.id)]
+        [status, priority, reply || null, ticketId]
       );
-      if (!result.rows.length) return res.status(404).json({ error: "Ticket not found." });
-      res.json({ success: true });
+
+      let emailSent = false;
+      const previousReply = String(existing.rows[0].admin_reply || "").trim();
+      if (reply && reply !== previousReply && validEmail(existing.rows[0].customer_email)) {
+        try {
+          await sendSupportReplyEmail({
+            to: existing.rows[0].customer_email,
+            ticketReference: "BHD-SUP-" + String(ticketId).padStart(6, "0"),
+            subject: existing.rows[0].subject,
+            reply,
+            status
+          });
+          emailSent = true;
+        } catch (emailError) {
+          console.error("Support reply email error:", emailError.response?.data || emailError.message);
+        }
+      }
+      res.json({ success: true, emailSent });
     } catch (error) {
       console.error("Support update error:", error.message);
       res.status(500).json({ error: "Unable to update ticket." });

@@ -912,6 +912,8 @@
 
       const content = document.createElement("div");
       content.id = "adminSectionContent";
+      if (notificationPanel) content.appendChild(notificationPanel);
+      if (statsPanel) content.appendChild(statsPanel);
 
       const overviewButton = document.createElement("button");
       overviewButton.type = "button";

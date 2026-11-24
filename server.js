@@ -86,7 +86,7 @@ async function getExpectedPaymentAmount(metadata) {
   if (
     !redemption.rows.length ||
     !(redemption.rows[0].status === "PENDING" || redemption.rows[0].status === "REDEEMED") ||
-    new Date(redemption.rows[0].expires_at) <= new Date() ||
+    (redemption.rows[0].status === "PENDING" && new Date(redemption.rows[0].expires_at) <= new Date()) ||
     Number(redemption.rows[0].points) !== points ||
     Number(redemption.rows[0].discount_pesewas) !== points
   ) return null;
@@ -1777,7 +1777,7 @@ app.post(
           await client.query(
             `INSERT INTO loyalty_redemptions
              (reference, customer_id, points, discount_pesewas, status, expires_at)
-             VALUES ($1, $2, $3, $4, 'PENDING', NOW() + INTERVAL '30 minutes')`,
+             VALUES ($1, $2, $3, $4, 'PENDING', NOW() + INTERVAL '24 hours')`,
             [loyaltyReference, customerId, loyaltyPoints, discountPesewas]
           );
           await client.query("COMMIT");

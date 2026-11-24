@@ -614,6 +614,17 @@ body {
     <h2>Customer Support</h2>
     <p class="muted">Create a support ticket and follow replies from the support team here.</p>
 
+    <div class="dashboard-card" style="margin:16px 0;padding:16px;border:1px solid var(--border);">
+      <h3>Live Chat with Support</h3>
+      <p class="muted">Send a message to the support team. Replies will appear here automatically while this page is open.</p>
+      <div id="liveChatStatus" class="message" role="status">Loading chat...</div>
+      <div id="liveChatMessages" style="display:grid;gap:10px;max-height:320px;overflow:auto;padding:10px 0;"></div>
+      <form id="liveChatForm" style="display:grid;gap:10px;margin-top:10px;">
+        <textarea id="liveChatInput" rows="3" maxlength="2000" placeholder="Type your message (up to 2,000 characters)..." required></textarea>
+        <button class="primary-button" id="liveChatSend" type="submit">Send Message</button>
+      </form>
+    </div>
+
     <form id="supportTicketForm" style="display:grid;gap:12px;margin:18px 0;">
       <input id="supportSubject" type="text" maxlength="120" placeholder="What do you need help with?" required>
       <input id="supportOrderReference" type="text" maxlength="100" placeholder="Order reference (optional)">
@@ -1302,6 +1313,88 @@ document.getElementById("supportTicketForm").addEventListener("submit", async ev
   } finally {
     button.disabled = false;
     button.textContent = "Submit Support Ticket";
+  }
+});
+
+// LIVE CUSTOMER CHAT
+let liveChatPollingStarted = false;
+let liveChatLastMessageId = 0;
+async function loadLiveChat() {
+  const list = document.getElementById("liveChatMessages");
+  const status = document.getElementById("liveChatStatus");
+  if (!list) return;
+  try {
+    const data = await apiRequest("/api/features/customer/chat");
+    const messages = Array.isArray(data.messages) ? data.messages : [];
+    list.replaceChildren();
+    if (!messages.length) {
+      const empty = document.createElement("p");
+      empty.className = "muted";
+      empty.textContent = "No messages yet. Send a message to start a conversation.";
+      list.appendChild(empty);
+    }
+    messages.forEach(item => {
+      const bubble = document.createElement("div");
+      bubble.style.maxWidth = "85%";
+      bubble.style.justifySelf = item.sender === "CUSTOMER" ? "end" : "start";
+      bubble.style.padding = "10px 13px";
+      bubble.style.borderRadius = "10px";
+      bubble.style.background = item.sender === "CUSTOMER" ? "rgba(215,25,32,.16)" : "rgba(255,255,255,.07)";
+      const who = document.createElement("strong");
+      who.textContent = item.sender === "CUSTOMER" ? "You" : "BHADEX Support";
+      const body = document.createElement("p");
+      body.style.whiteSpace = "pre-wrap";
+      body.style.margin = "5px 0";
+      body.textContent = item.message;
+      const time = document.createElement("small");
+      time.className = "muted";
+      time.textContent = item.created_at ? new Date(item.created_at).toLocaleString() : "";
+      bubble.append(who, body, time);
+      list.appendChild(bubble);
+    });
+    if (messages.length) {
+      liveChatLastMessageId = Number(messages[messages.length - 1].id) || liveChatLastMessageId;
+      status.textContent = "Chat connected. " + messages.length + " message(s).";
+      status.className = "message success";
+    } else {
+      status.textContent = "Chat connected. Start a conversation below.";
+      status.className = "message";
+    }
+    list.scrollTop = list.scrollHeight;
+    if (!liveChatPollingStarted) {
+      liveChatPollingStarted = true;
+      window.setInterval(loadLiveChat, 10000);
+    }
+  } catch (error) {
+    status.textContent = error.message || "Unable to connect to live chat.";
+    status.className = "message";
+  }
+}
+document.getElementById("liveChatForm").addEventListener("submit", async event => {
+  event.preventDefault();
+  const input = document.getElementById("liveChatInput");
+  const button = document.getElementById("liveChatSend");
+  const status = document.getElementById("liveChatStatus");
+  const message = input.value.trim();
+  if (!message) return;
+  button.disabled = true;
+  button.textContent = "Sending...";
+  try {
+    await apiRequest("/api/features/customer/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message })
+    });
+    input.value = "";
+    status.textContent = "Message sent.";
+    status.className = "message success";
+    await loadLiveChat();
+  } catch (error) {
+    status.textContent = error.message || "Unable to send your message.";
+    status.className = "message";
+  } finally {
+    button.disabled = false;
+    button.textContent = "Send Message";
   }
 });
 

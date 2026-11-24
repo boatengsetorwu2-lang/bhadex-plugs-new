@@ -216,6 +216,14 @@ async function sendEmailVerificationOTP(email, code) {
 }
 
 // PASSWORD RESET EMAIL
+async function sendEmailChangeOTP(email, code) {
+  if (!process.env.RESEND_API_KEY || !process.env.RESEND_FROM_EMAIL) throw new Error("Resend email settings are missing.");
+  await axios.post("https://api.resend.com/emails", {
+    from: process.env.RESEND_FROM_EMAIL, to: [email], subject: "Confirm your new BHADEX PLUGS email address",
+    html: `<div style="font-family:Arial,sans-serif;max-width:550px;margin:auto;padding:30px;color:#222;"><h2 style="color:#d71920;">BHADEX PLUGS</h2><h3>Confirm your new email address</h3><p>Your verification code is:</p><div style="font-size:32px;font-weight:bold;letter-spacing:8px;color:#d71920;padding:15px 0;">${code}</div><p>This code expires in 10 minutes. If you did not request this change, ignore this message.</p></div>`
+  }, { headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" } });
+}
+
 async function sendPasswordResetOTP(email, code) {
   if (!process.env.RESEND_API_KEY || !process.env.RESEND_FROM_EMAIL) {
     throw new Error("Resend environment variables are missing.");
@@ -577,7 +585,7 @@ app.post(
 );
 
 // GENERAL MIDDLEWARE
-app.use(express.json({ limit: "10kb" }));
+app.use(express.json({ limit: "2mb" }));
 
 app.use(helmet({
   contentSecurityPolicy: false
@@ -1299,6 +1307,12 @@ app.patch(
   async (req, res) => {
     try {
       const name = String(req.body?.name || "").trim();
+      const profileImage = req.body?.profileImage;
+      if (profileImage !== undefined && profileImage !== null &&
+          (typeof profileImage !== "string" || profileImage.length > 1400000 ||
+           !/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+=*$/.test(profileImage))) {
+        return res.status(400).json({ error: "Choose a valid JPG, PNG or WEBP image smaller than 1 MB." });
+      }
 
       if (name.length < 2 || name.length > 100) {
         return res.status(400).json({
@@ -1309,10 +1323,11 @@ app.patch(
       const result = await pool.query(
         `UPDATE customers
          SET name = $1,
+             profile_image = CASE WHEN $2::text IS NULL THEN profile_image ELSE $2::text END,
              updated_at = NOW()
-         WHERE id = $2
-         RETURNING id, name, email, created_at`,
-        [name, req.session.customerId]
+         WHERE id = $3
+         RETURNING id, name, email, created_at, profile_image`,
+        [name, profileImage === undefined ? null : profileImage, req.session.customerId]
       );
 
       if (result.rows.length === 0) {
@@ -1335,11 +1350,86 @@ app.patch(
   }
 );
 
+
+// REQUEST CUSTOMER EMAIL CHANGE
+app.post("/api/customer/email-change/request", requireCustomer, passwordChangeLimiter, async (req, res) => {
+  try {
+    const newEmail = String(req.body?.newEmail || "").trim().toLowerCase();
+    const password = req.body?.password;
+    if (!validEmail(newEmail) || typeof password !== "string" || password.length > 128) {
+      return res.status(400).json({ error: "Enter a valid new email address and your current password." });
+    }
+    const current = await pool.query("SELECT email, password_hash FROM customers WHERE id=$1 LIMIT 1", [req.session.customerId]);
+    if (!current.rows.length) return res.status(404).json({ error: "Customer account not found." });
+    if (!(await verifyCustomerPassword(password, current.rows[0].password_hash))) {
+      return res.status(400).json({ error: "Your current password is incorrect." });
+    }
+    if (newEmail === current.rows[0].email.toLowerCase()) return res.status(400).json({ error: "That is already your account email." });
+    const used = await pool.query("SELECT id FROM customers WHERE LOWER(email)=LOWER($1) AND id<>$2 LIMIT 1", [newEmail, req.session.customerId]);
+    if (used.rows.length) return res.status(409).json({ error: "That email address is already linked to another account." });
+    const existing = await pool.query("SELECT last_sent_at FROM customer_email_changes WHERE customer_id=$1", [req.session.customerId]);
+    if (existing.rows.length && Date.now() - new Date(existing.rows[0].last_sent_at).getTime() < 60000) {
+      return res.status(429).json({ error: "Please wait 60 seconds before requesting another code." });
+    }
+    const code = generateOTP();
+    await pool.query(
+      `INSERT INTO customer_email_changes(customer_id,new_email,code_hash,attempts,last_sent_at,expires_at)
+       VALUES($1,$2,$3,0,NOW(),NOW()+INTERVAL '10 minutes')
+       ON CONFLICT(customer_id) DO UPDATE SET new_email=EXCLUDED.new_email,code_hash=EXCLUDED.code_hash,attempts=0,last_sent_at=NOW(),expires_at=NOW()+INTERVAL '10 minutes'`,
+      [req.session.customerId, newEmail, hashOTP(newEmail, code)]
+    );
+    await sendEmailChangeOTP(newEmail, code);
+    return res.json({ success: true, message: "A verification code has been sent to your new email address." });
+  } catch (error) {
+    console.error("Email change request error:", error.response?.data || error.message);
+    return res.status(500).json({ error: "Unable to send the verification code right now." });
+  }
+});
+
+// CONFIRM CUSTOMER EMAIL CHANGE
+app.post("/api/customer/email-change/confirm", requireCustomer, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const code = String(req.body?.code || "");
+    if (!/^\d{6}$/.test(code)) return res.status(400).json({ error: "Enter the 6-digit verification code." });
+    await client.query("BEGIN");
+    const pending = await client.query("SELECT new_email,code_hash,attempts,expires_at FROM customer_email_changes WHERE customer_id=$1 FOR UPDATE", [req.session.customerId]);
+    if (!pending.rows.length || new Date(pending.rows[0].expires_at) <= new Date()) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: "Your code has expired. Request a new one." });
+    }
+    const item = pending.rows[0];
+    if (Number(item.attempts) >= 5) {
+      await client.query("ROLLBACK");
+      return res.status(429).json({ error: "Too many incorrect attempts. Request a new code." });
+    }
+    if (!compareOTP(item.new_email, code, item.code_hash)) {
+      await client.query("UPDATE customer_email_changes SET attempts=attempts+1 WHERE customer_id=$1", [req.session.customerId]);
+      await client.query("COMMIT");
+      return res.status(400).json({ error: "That verification code is incorrect." });
+    }
+    const collision = await client.query("SELECT id FROM customers WHERE LOWER(email)=LOWER($1) AND id<>$2 LIMIT 1", [item.new_email, req.session.customerId]);
+    if (collision.rows.length) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({ error: "That email address is already linked to another account." });
+    }
+    await client.query("UPDATE customers SET email=$1,email_verified=TRUE,updated_at=NOW() WHERE id=$2", [item.new_email, req.session.customerId]);
+    await client.query("UPDATE orders SET customer_email=$1 WHERE LOWER(customer_email)=LOWER((SELECT email FROM customers WHERE id=$2)) AND FALSE", [item.new_email, req.session.customerId]).catch(()=>{});
+    await client.query("DELETE FROM customer_email_changes WHERE customer_id=$1", [req.session.customerId]);
+    await client.query("COMMIT");
+    return res.json({ success: true, email: item.new_email, message: "Your account email has been updated." });
+  } catch (error) {
+    await client.query("ROLLBACK").catch(()=>{});
+    console.error("Email change confirmation error:", error.message);
+    return res.status(500).json({ error: "Unable to update your email address." });
+  } finally { client.release(); }
+});
+
 // GET CUSTOMER ACCOUNT DETAILS
 app.get("/api/customer/me", requireCustomer, async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT id, name, email, created_at
+      `SELECT id, name, email, created_at, profile_image
        FROM customers
        WHERE id = $1
        LIMIT 1`,
@@ -1359,7 +1449,8 @@ app.get("/api/customer/me", requireCustomer, async (req, res) => {
         id: customer.id,
         name: customer.name,
         email: customer.email,
-        createdAt: customer.created_at
+        createdAt: customer.created_at,
+        profileImage: customer.profile_image || null
       }
     });
   } catch (error) {
@@ -2223,6 +2314,9 @@ app.get("/api/payments/verify/:reference", async (req, res) => {
 async function startServer() {
   try {
     await initializeDatabase();
+
+    await pool.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS profile_image TEXT`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS customer_email_changes (customer_id BIGINT PRIMARY KEY REFERENCES customers(id) ON DELETE CASCADE, new_email VARCHAR(255) NOT NULL, code_hash VARCHAR(64) NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, last_sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), expires_at TIMESTAMPTZ NOT NULL)`);
 
     await pool.query(`CREATE TABLE IF NOT EXISTS loyalty_redemptions (
       reference VARCHAR(100) PRIMARY KEY,

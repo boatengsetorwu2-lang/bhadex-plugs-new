@@ -639,6 +639,19 @@
         <div id="giftCardsList" class="inventory-list"></div>
       </section>
 
+
+      <!-- NEWSLETTER SUBSCRIBERS -->
+      <section class="panel">
+        <h2>Newsletter Subscribers</h2>
+        <p class="muted">View the email addresses that opted in to receive BHADEX PLUGS updates. Remove an address if its owner asks to unsubscribe.</p>
+        <div class="notification-controls" style="margin:14px 0;">
+          <button class="secondary" id="refreshNewsletterBtn" type="button">Refresh Subscribers</button>
+          <button class="primary" id="exportNewsletterBtn" type="button">Export CSV</button>
+        </div>
+        <p id="newsletterAdminMessage" class="message" aria-live="polite">Subscribers will load after login.</p>
+        <div id="newsletterSubscribersList" class="inventory-list"></div>
+      </section>
+
       <!-- ANNOUNCEMENTS MANAGEMENT -->
       <section class="panel">
         <h2>Website Announcements</h2>
@@ -1967,6 +1980,78 @@
       document.getElementById("announcementSubmitBtn").textContent = "Publish Announcement";
       document.getElementById("announcementCancelBtn").classList.add("hidden");
     }
+
+
+    // NEWSLETTER SUBSCRIBER MANAGEMENT
+    let newsletterSubscribers = [];
+
+    async function loadNewsletterSubscribers() {
+      const message = document.getElementById("newsletterAdminMessage");
+      const list = document.getElementById("newsletterSubscribersList");
+      list.replaceChildren();
+      message.textContent = "Loading newsletter subscribers...";
+      try {
+        const data = await request("/api/features/admin/newsletter");
+        newsletterSubscribers = Array.isArray(data.subscribers) ? data.subscribers : [];
+        if (!newsletterSubscribers.length) {
+          message.textContent = "No active newsletter subscribers yet.";
+          return;
+        }
+        message.textContent = newsletterSubscribers.length + " active subscriber(s).";
+        newsletterSubscribers.forEach(subscriber => {
+          const row = document.createElement("div");
+          row.className = "inventory-row";
+          const info = document.createElement("div");
+          const email = document.createElement("div");
+          email.className = "inventory-product";
+          email.textContent = subscriber.email;
+          const date = document.createElement("span");
+          date.className = "inventory-state";
+          date.textContent = "Subscribed " + formatDate(subscriber.created_at);
+          info.append(email, date);
+          const remove = document.createElement("button");
+          remove.type = "button";
+          remove.className = "secondary";
+          remove.textContent = "Remove";
+          remove.addEventListener("click", async () => {
+            if (!confirm("Remove " + subscriber.email + " from the active newsletter list?")) return;
+            remove.disabled = true;
+            remove.textContent = "Removing...";
+            try {
+              await request("/api/features/admin/newsletter/" + encodeURIComponent(subscriber.id), { method: "DELETE" });
+              await loadNewsletterSubscribers();
+            } catch (error) {
+              message.textContent = "Could not remove subscriber: " + error.message;
+              remove.disabled = false;
+              remove.textContent = "Remove";
+            }
+          });
+          row.append(info, remove);
+          list.appendChild(row);
+        });
+      } catch (error) {
+        if (error.message !== "Session expired") message.textContent = "Could not load subscribers: " + error.message;
+      }
+    }
+
+    document.getElementById("refreshNewsletterBtn").addEventListener("click", loadNewsletterSubscribers);
+    document.getElementById("exportNewsletterBtn").addEventListener("click", () => {
+      if (!newsletterSubscribers.length) {
+        document.getElementById("newsletterAdminMessage").textContent = "There are no subscribers to export.";
+        return;
+      }
+      const rows = [["Email", "Subscribed At"], ...newsletterSubscribers.map(item => [item.email, item.created_at])];
+      const csv = rows.map(row => row.map(value => '"' + String(value ?? "").replace(/"/g, '""') + '"').join(",")).join("\r\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "bhadex-newsletter-subscribers.csv";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    });
 
     async function loadAnnouncements() {
       const message = document.getElementById("announcementsMessage");

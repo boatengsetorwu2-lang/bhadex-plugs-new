@@ -623,6 +623,22 @@
         <div id="couponsList" class="inventory-list"></div>
       </section>
 
+      <!-- TEST GIFT CARD MANAGEMENT -->
+      <section class="panel">
+        <h2>Gift Cards · Test Mode</h2>
+        <p class="muted">Create sample gift card codes for layout and workflow testing only. These cards are inactive and cannot be used at checkout.</p>
+        <form id="giftCardForm" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin:16px 0;">
+          <select id="giftCardValue" required aria-label="Test gift card value">
+            <option value="50">GH₵50 test card</option>
+            <option value="100">GH₵100 test card</option>
+            <option value="200">GH₵200 test card</option>
+          </select>
+          <button class="primary" type="submit">Generate Test Gift Card</button>
+        </form>
+        <p id="giftCardsMessage" class="message" aria-live="polite">Test gift cards will load after login.</p>
+        <div id="giftCardsList" class="inventory-list"></div>
+      </section>
+
       <!-- PRODUCT REVIEW MODERATION -->
       <section class="panel">
         <h2>Product Reviews</h2>
@@ -1119,6 +1135,7 @@
         await loadAdminReferrals();
         await loadAbandonedCheckouts();
         await loadCoupons();
+        await loadGiftCards();
         await loadAdminReviews();
         await loadAdminSupport();
         await loadAdminChat();
@@ -1618,6 +1635,71 @@
       } finally {
         button.disabled = false;
         button.textContent = "Create Coupon";
+      }
+    });
+
+    // TEST GIFT CARD MANAGEMENT
+    async function loadGiftCards() {
+      const message = document.getElementById("giftCardsMessage");
+      const list = document.getElementById("giftCardsList");
+      list.replaceChildren();
+      message.textContent = "Loading test gift cards...";
+      try {
+        const data = await request("/api/features/admin/gift-cards");
+        const cards = data.giftCards || [];
+        if (!cards.length) {
+          message.textContent = "No test gift cards created yet.";
+          return;
+        }
+        message.textContent = cards.length + " test card(s). All cards are inactive and not redeemable.";
+        cards.forEach(card => {
+          const row = document.createElement("div");
+          row.className = "inventory-row";
+          const info = document.createElement("div");
+          const code = document.createElement("div");
+          code.className = "inventory-product";
+          code.textContent = card.code;
+          const detail = document.createElement("span");
+          detail.className = "inventory-state";
+          detail.textContent = "Test value: " + money(card.value) + " · Test balance: " + money(card.balance);
+          const status = document.createElement("span");
+          status.className = "inventory-state unavailable";
+          status.textContent = "TEST ONLY · INACTIVE";
+          info.append(code, detail, status);
+          const copy = document.createElement("button");
+          copy.type = "button";
+          copy.className = "secondary";
+          copy.textContent = "Copy Code";
+          copy.addEventListener("click", () => copyText(card.code, copy));
+          row.append(info, copy);
+          list.appendChild(row);
+        });
+      } catch (error) {
+        if (error.message !== "Session expired") message.textContent = "Could not load test gift cards: " + error.message;
+      }
+    }
+
+    document.getElementById("giftCardForm").addEventListener("submit", async event => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const button = form.querySelector('button[type="submit"]');
+      const message = document.getElementById("giftCardsMessage");
+      button.disabled = true;
+      button.textContent = "Generating...";
+      try {
+        const result = await request("/api/features/admin/gift-cards", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ value: Number(document.getElementById("giftCardValue").value) })
+        });
+        form.reset();
+        message.textContent = "Test card created: " + result.giftCard.code + ". It is inactive and cannot be redeemed.";
+        await loadGiftCards();
+      } catch (error) {
+        message.textContent = "Could not create test gift card: " + error.message;
+      } finally {
+        button.disabled = false;
+        button.textContent = "Generate Test Gift Card";
       }
     });
 

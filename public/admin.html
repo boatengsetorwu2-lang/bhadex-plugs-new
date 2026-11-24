@@ -571,6 +571,14 @@
         <div id="inventoryList" class="inventory-list"></div>
       </section>
 
+      <!-- PRODUCT REVIEW MODERATION -->
+      <section class="panel">
+        <h2>Product Reviews</h2>
+        <p class="muted">Review customer submissions before publishing them on the Marketplace.</p>
+        <p id="reviewsAdminMessage" class="message" aria-live="polite">Reviews will load after login.</p>
+        <div id="adminReviewsList"></div>
+      </section>
+
       <!-- CUSTOMER MANAGEMENT -->
       <section class="panel">
         <h2>Customer Management</h2>
@@ -1016,6 +1024,7 @@
         await loadOrders();
         await loadCustomers();
         await loadInventory();
+        await loadAdminReviews();
         startOrderPolling();
 
       } catch (error) {
@@ -1250,6 +1259,87 @@
       }
     }
 
+    // PRODUCT REVIEW MODERATION
+    async function loadAdminReviews() {
+      const container = document.getElementById("adminReviewsList");
+      const message = document.getElementById("reviewsAdminMessage");
+      container.replaceChildren();
+      message.textContent = "Loading product reviews...";
+      try {
+        const data = await request("/api/features/admin/reviews");
+        const reviews = Array.isArray(data.reviews) ? data.reviews : [];
+        if (!reviews.length) {
+          message.textContent = "No customer reviews have been submitted yet.";
+          return;
+        }
+        message.textContent = reviews.length + " review(s) found.";
+        reviews.forEach(review => {
+          const card = document.createElement("article");
+          card.className = "notification-item";
+          const title = document.createElement("strong");
+          title.textContent = (review.product || "Product") + " · " + Number(review.rating || 0) + "/5";
+          const copy = document.createElement("p");
+          copy.textContent = review.review || "";
+          const meta = document.createElement("p");
+          meta.className = "muted";
+          meta.textContent = (review.customer_email || "Customer") + " · Order: " + (review.order_reference || "-") + " · " + formatDate(review.created_at);
+          const status = document.createElement("p");
+          status.className = "muted";
+          status.textContent = "Status: " + (review.status || "PENDING");
+          card.append(title, copy, meta, status);
+
+          const actions = document.createElement("div");
+          actions.className = "notification-controls";
+          if (review.status !== "APPROVED") {
+            const approve = document.createElement("button");
+            approve.type = "button";
+            approve.className = "primary";
+            approve.textContent = "Approve";
+            approve.addEventListener("click", async () => {
+              approve.disabled = true;
+              try {
+                await request("/api/features/admin/reviews/" + encodeURIComponent(review.id), {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ status: "APPROVED" })
+                });
+                await loadAdminReviews();
+              } catch (error) {
+                message.textContent = "Could not approve review: " + error.message;
+                approve.disabled = false;
+              }
+            });
+            actions.appendChild(approve);
+          }
+          if (review.status !== "REJECTED") {
+            const reject = document.createElement("button");
+            reject.type = "button";
+            reject.className = "secondary";
+            reject.textContent = "Reject";
+            reject.addEventListener("click", async () => {
+              reject.disabled = true;
+              try {
+                await request("/api/features/admin/reviews/" + encodeURIComponent(review.id), {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ status: "REJECTED" })
+                });
+                await loadAdminReviews();
+              } catch (error) {
+                message.textContent = "Could not reject review: " + error.message;
+                reject.disabled = false;
+              }
+            });
+            actions.appendChild(reject);
+          }
+          card.appendChild(actions);
+          container.appendChild(card);
+        });
+      } catch (error) {
+        if (error.message !== "Session expired") message.textContent = "Could not load reviews: " + error.message;
+      }
+    }
+
     // LOAD CUSTOMER ORDERS
     async function loadOrders() {
       if (loadingOrders) return;
@@ -1432,6 +1522,7 @@
       async () => {
         await loadOrders();
         await loadCustomers();
+        await loadAdminReviews();
         await checkForNewOrders();
       }
     );

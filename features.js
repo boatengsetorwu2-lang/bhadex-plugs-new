@@ -414,6 +414,120 @@ module.exports = function createFeatureRouter({ pool, requireCustomer, requireAd
     }
   });
 
+  // LIVE CUSTOMER SUPPORT CHAT
+  router.get("/customer/chat", requireCustomer, async (req, res) => {
+    try {
+      const customer = await customerEmail(req);
+      if (!customer) return res.status(404).json({ error: "Customer account not found." });
+      const conversation = await pool.query(
+        `INSERT INTO live_chat_conversations(customer_id) VALUES($1)
+         ON CONFLICT(customer_id) DO UPDATE SET updated_at = NOW()
+         RETURNING id`,
+        [customer.id]
+      );
+      const conversationId = conversation.rows[0].id;
+      await pool.query(
+        "UPDATE live_chat_messages SET read_at = NOW() WHERE conversation_id = $1 AND sender = 'ADMIN' AND read_at IS NULL",
+        [conversationId]
+      );
+      const messages = await pool.query(
+        "SELECT id, sender, message, read_at, created_at FROM live_chat_messages WHERE conversation_id = $1 ORDER BY created_at ASC LIMIT 300",
+        [conversationId]
+      );
+      res.json({ conversationId, messages: messages.rows });
+    } catch (error) {
+      console.error("Customer live chat load error:", error.message);
+      res.status(500).json({ error: "Unable to load live chat." });
+    }
+  });
+
+  router.post("/customer/chat", requireCustomer, async (req, res) => {
+    try {
+      const customer = await customerEmail(req);
+      if (!customer) return res.status(404).json({ error: "Customer account not found." });
+      const message = clean(req.body?.message, 2000);
+      if (!message) return res.status(400).json({ error: "Write a message before sending." });
+      const conversation = await pool.query(
+        `INSERT INTO live_chat_conversations(customer_id) VALUES($1)
+         ON CONFLICT(customer_id) DO UPDATE SET updated_at = NOW()
+         RETURNING id`,
+        [customer.id]
+      );
+      const conversationId = conversation.rows[0].id;
+      const saved = await pool.query(
+        "INSERT INTO live_chat_messages(conversation_id, sender, message) VALUES($1, 'CUSTOMER', $2) RETURNING id, sender, message, read_at, created_at",
+        [conversationId, message]
+      );
+      await pool.query("UPDATE live_chat_conversations SET updated_at = NOW() WHERE id = $1", [conversationId]);
+      res.status(201).json({ message: saved.rows[0] });
+    } catch (error) {
+      console.error("Customer live chat send error:", error.message);
+      res.status(500).json({ error: "Unable to send your chat message." });
+    }
+  });
+
+  router.get("/admin/chat/conversations", requireAdmin, async (req, res) => {
+    try {
+      const result = await pool.query(`
+        SELECT c.id, c.customer_id, cu.name AS customer_name, cu.email AS customer_email,
+               c.updated_at,
+               (SELECT COUNT(*)::int FROM live_chat_messages m
+                WHERE m.conversation_id = c.id AND m.sender = 'CUSTOMER' AND m.read_at IS NULL) AS unread_count,
+               (SELECT message FROM live_chat_messages m
+                WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1) AS last_message
+        FROM live_chat_conversations c
+        JOIN customers cu ON cu.id = c.customer_id
+        ORDER BY c.updated_at DESC LIMIT 300
+      `);
+      res.json({ conversations: result.rows });
+    } catch (error) {
+      console.error("Admin chat list error:", error.message);
+      res.status(500).json({ error: "Unable to load chat conversations." });
+    }
+  });
+
+  router.get("/admin/chat/:id", requireAdmin, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (!Number.isSafeInteger(id) || id < 1) return res.status(400).json({ error: "Invalid conversation." });
+      const exists = await pool.query("SELECT id FROM live_chat_conversations WHERE id = $1", [id]);
+      if (!exists.rows.length) return res.status(404).json({ error: "Conversation not found." });
+      await pool.query(
+        "UPDATE live_chat_messages SET read_at = NOW() WHERE conversation_id = $1 AND sender = 'CUSTOMER' AND read_at IS NULL",
+        [id]
+      );
+      const messages = await pool.query(
+        "SELECT id, sender, message, read_at, created_at FROM live_chat_messages WHERE conversation_id = $1 ORDER BY created_at ASC LIMIT 300",
+        [id]
+      );
+      res.json({ messages: messages.rows });
+    } catch (error) {
+      console.error("Admin chat history error:", error.message);
+      res.status(500).json({ error: "Unable to load this conversation." });
+    }
+  });
+
+  router.post("/admin/chat/:id", requireAdmin, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const message = clean(req.body?.message, 2000);
+      if (!Number.isSafeInteger(id) || id < 1) return res.status(400).json({ error: "Invalid conversation." });
+      if (!message) return res.status(400).json({ error: "Write a reply before sending." });
+      const saved = await pool.query(
+        `INSERT INTO live_chat_messages(conversation_id, sender, message)
+         SELECT id, 'ADMIN', $2 FROM live_chat_conversations WHERE id = $1
+         RETURNING id, sender, message, read_at, created_at`,
+        [id, message]
+      );
+      if (!saved.rows.length) return res.status(404).json({ error: "Conversation not found." });
+      await pool.query("UPDATE live_chat_conversations SET updated_at = NOW() WHERE id = $1", [id]);
+      res.status(201).json({ message: saved.rows[0] });
+    } catch (error) {
+      console.error("Admin chat reply error:", error.message);
+      res.status(500).json({ error: "Unable to send your reply." });
+    }
+  });
+
   // Admin tools
   router.get("/admin/analytics", requireAdmin, async (req, res) => {
     try {

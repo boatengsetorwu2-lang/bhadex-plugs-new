@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+Disallow: /admin.html
+Disallow: /account.html
+Disallow: /login.html
+Disallow: /register.html
+Disallow: /payment.html
+Disallow: /forgot-password.html
+Disallow: /api/
+
+Sitemap: https://bhadex-plugs.onrender.com/sitemap.xml

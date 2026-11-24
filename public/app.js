@@ -1455,3 +1455,32 @@ renderProducts();
 renderRecentlyViewed();
 loadProductAvailability();
 loadPublicReviews();
+
+// OPEN A PREVIOUSLY PURCHASED PRODUCT FOR REORDERING
+(function handleReorderLink() {
+  const params = new URLSearchParams(window.location.search);
+  const productName = params.get("reorderProduct");
+  const requestedPackage = params.get("reorderPackage");
+
+  if (!productName) return;
+
+  const product = products.find(item =>
+    item.name.toLowerCase() === productName.trim().toLowerCase()
+  );
+
+  if (!product) return;
+
+  openProductModal(product);
+
+  const packageIndex = packageNames.findIndex(name =>
+    name.toLowerCase() === String(requestedPackage || "").trim().toLowerCase()
+  );
+
+  const packageSelect = document.getElementById("modalPackage");
+  if (packageSelect && packageIndex >= 0) {
+    packageSelect.value = String(packageIndex);
+  }
+
+  // Remove the reorder parameters so refreshing does not reopen the dialog.
+  window.history.replaceState({}, document.title, window.location.pathname);
+})();

@@ -898,18 +898,79 @@ textarea {
     padding: 50px 6% 80px;
   }
 
+  /* COMPACT PRODUCT CARDS FOR SMARTPHONES */
   .product-card {
     min-height: auto;
-    padding: 22px;
+    padding: 16px;
+    gap: 8px;
+    border-radius: 15px;
+  }
+
+  .product-card-top {
+    margin-bottom: 0;
+  }
+
+  .product-category {
+    font-size: 8px;
+    letter-spacing: 1.4px;
   }
 
   .product-description {
     min-height: auto;
+    font-size: 12px;
+    line-height: 1.5;
   }
 
   .product-logo {
-    width: 50px;
-    height: 50px;
+    width: 42px;
+    height: 42px;
+    padding: 8px;
+    border-radius: 11px;
+    margin-bottom: 2px;
+  }
+
+  .product-name {
+    font-size: 18px;
+    margin: 1px 0;
+  }
+
+  .product-benefits {
+    margin-top: 5px;
+  }
+
+  .product-benefits h4 {
+    font-size: 13px;
+    margin-bottom: 5px;
+  }
+
+  .product-benefits ul {
+    font-size: 11px;
+    line-height: 1.6;
+  }
+
+  .product-purchase {
+    gap: 8px;
+    padding-top: 10px;
+  }
+
+  .product-purchase label {
+    font-size: 12px;
+  }
+
+  .package-select {
+    min-height: 48px;
+    padding: 11px 12px;
+    font-size: 14px;
+  }
+
+  .buy-btn {
+    min-height: 44px;
+    padding: 11px 14px;
+    font-size: 12px;
+  }
+
+  .product-note {
+    font-size: 9px;
   }
 
   .bottom-cta {

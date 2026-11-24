@@ -151,13 +151,30 @@ module.exports = function createFeatureRouter({ pool, requireCustomer, requireAd
   router.get("/customer/rewards", requireCustomer, async (req, res) => {
     try {
       const customer = await customerEmail(req);
-      const result = await pool.query(
-        `SELECT COALESCE(SUM(points), 0)::int AS points,
-                COUNT(*)::int AS earned_orders
-         FROM loyalty_ledger WHERE customer_id = $1`,
-        [customer.id]
-      );
-      res.json({ points: result.rows[0].points, earnedOrders: result.rows[0].earned_orders });
+      if (!customer) return res.status(404).json({ error: "Customer account not found." });
+
+      const [summary, history] = await Promise.all([
+        pool.query(
+          `SELECT COALESCE(SUM(points), 0)::int AS points,
+                  COUNT(*)::int AS earned_orders
+           FROM loyalty_ledger WHERE customer_id = $1`,
+          [customer.id]
+        ),
+        pool.query(
+          `SELECT order_reference, points, created_at
+           FROM loyalty_ledger
+           WHERE customer_id = $1
+           ORDER BY created_at DESC
+           LIMIT 50`,
+          [customer.id]
+        )
+      ]);
+
+      res.json({
+        points: summary.rows[0].points,
+        earnedOrders: summary.rows[0].earned_orders,
+        history: history.rows
+      });
     } catch (error) {
       console.error("Rewards load error:", error.message);
       res.status(500).json({ error: "Unable to load rewards." });

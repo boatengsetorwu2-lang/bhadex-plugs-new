@@ -532,23 +532,36 @@ module.exports = function createFeatureRouter({ pool, requireCustomer, requireAd
   // Admin tools
   router.get("/admin/analytics", requireAdmin, async (req, res) => {
     try {
-      const result = await pool.query(`
-        SELECT
-          COUNT(*)::int AS total_orders,
-          COUNT(*) FILTER (WHERE status='PAID')::int AS paid_orders,
-          COALESCE(SUM(amount) FILTER (WHERE status='PAID'),0) AS revenue,
-          COUNT(DISTINCT LOWER(customer_email))::int AS customers,
-          COUNT(*) FILTER (WHERE fulfillment_status='DELIVERED')::int AS delivered_orders
-        FROM orders
-      `);
-      const daily = await pool.query(`
-        SELECT TO_CHAR(created_at::date, 'YYYY-MM-DD') AS day,
-               COUNT(*)::int AS orders,
-               COALESCE(SUM(amount) FILTER (WHERE status='PAID'),0) AS revenue
-        FROM orders WHERE created_at >= NOW() - INTERVAL '30 days'
-        GROUP BY created_at::date ORDER BY created_at::date
-      `);
-      res.json({ summary: result.rows[0], daily: daily.rows });
+      const [summary, daily, topProducts, fulfillment] = await Promise.all([
+        pool.query(`
+          SELECT COUNT(*)::int AS total_orders,
+                 COUNT(*) FILTER (WHERE status='PAID')::int AS paid_orders,
+                 COALESCE(SUM(amount) FILTER (WHERE status='PAID'),0)::numeric(12,2) AS revenue,
+                 COUNT(DISTINCT LOWER(customer_email))::int AS customers,
+                 COUNT(*) FILTER (WHERE fulfillment_status='DELIVERED')::int AS delivered_orders
+          FROM orders WHERE created_at >= NOW() - INTERVAL '29 days'
+        `),
+        pool.query(`
+          SELECT TO_CHAR(created_at::date, 'YYYY-MM-DD') AS day,
+                 COUNT(*) FILTER (WHERE status='PAID')::int AS orders,
+                 COALESCE(SUM(amount) FILTER (WHERE status='PAID'),0)::numeric(12,2) AS revenue
+          FROM orders WHERE created_at >= NOW() - INTERVAL '29 days'
+          GROUP BY created_at::date ORDER BY created_at::date
+        `),
+        pool.query(`
+          SELECT product, COUNT(*)::int AS orders,
+                 COALESCE(SUM(amount),0)::numeric(12,2) AS revenue
+          FROM orders WHERE status='PAID' AND created_at >= NOW() - INTERVAL '29 days'
+          GROUP BY product ORDER BY orders DESC, revenue DESC LIMIT 5
+        `),
+        pool.query(`
+          SELECT fulfillment_status AS status, COUNT(*)::int AS count
+          FROM orders WHERE created_at >= NOW() - INTERVAL '29 days'
+          GROUP BY fulfillment_status ORDER BY count DESC
+        `)
+      ]);
+      res.json({ periodDays: 30, summary: summary.rows[0], daily: daily.rows,
+        topProducts: topProducts.rows, fulfillment: fulfillment.rows });
     } catch (error) {
       console.error("Analytics error:", error.message);
       res.status(500).json({ error: "Unable to load analytics." });

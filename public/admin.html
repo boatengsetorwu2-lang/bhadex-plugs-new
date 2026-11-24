@@ -1449,7 +1449,7 @@
             save.disabled = true;
             save.textContent = "Saving...";
             try {
-              await request("/api/features/admin/support/" + encodeURIComponent(ticket.id), {
+              const result = await request("/api/features/admin/support/" + encodeURIComponent(ticket.id), {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -1458,7 +1458,10 @@
                   reply: reply.value
                 })
               });
-              message.textContent = "Ticket " + (ticket.ticket_reference || ticket.id) + " updated. The customer can see your reply in their account.";
+              message.textContent = "Ticket " + (ticket.ticket_reference || ticket.id) + " updated. " +
+                (result.emailSent ? "A reply notification email was sent." :
+                  (reply.value.trim() ? "The reply is saved, but the notification email was not sent. Check Resend settings and Render logs." :
+                    "The customer can see the update in their account."));
               await loadAdminSupport();
             } catch (error) {
               message.textContent = "Could not update ticket: " + error.message;

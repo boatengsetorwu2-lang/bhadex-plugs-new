@@ -1308,6 +1308,7 @@ app.patch(
     try {
       const name = String(req.body?.name || "").trim();
       const profileImage = req.body?.profileImage;
+      const hasProfileImage = Object.prototype.hasOwnProperty.call(req.body || {}, "profileImage");
       if (profileImage !== undefined && profileImage !== null &&
           (typeof profileImage !== "string" || profileImage.length > 1400000 ||
            !/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+=*$/.test(profileImage))) {
@@ -1323,11 +1324,11 @@ app.patch(
       const result = await pool.query(
         `UPDATE customers
          SET name = $1,
-             profile_image = CASE WHEN $2::text IS NULL THEN profile_image ELSE $2::text END,
+             profile_image = CASE WHEN $2::boolean THEN $3::text ELSE profile_image END,
              updated_at = NOW()
-         WHERE id = $3
+         WHERE id = $4
          RETURNING id, name, email, created_at, profile_image`,
-        [name, profileImage === undefined ? null : profileImage, req.session.customerId]
+        [name, hasProfileImage, profileImage ?? null, req.session.customerId]
       );
 
       if (result.rows.length === 0) {

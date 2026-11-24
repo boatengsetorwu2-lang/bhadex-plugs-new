@@ -89,6 +89,9 @@ const searchInput = document.getElementById("search");
 
 let activeCategory = "All";
 
+const RECENT_STORAGE_KEY = "bhadexRecentlyViewed";
+const MAX_RECENT_PRODUCTS = 6;
+
 // PREMIUM DARK THEME STYLING
 const premiumStyles = document.createElement("style");
 
@@ -129,7 +132,6 @@ premiumStyles.textContent = `
     display: flex;
   }
 
-  /* DARK DROPDOWN */
   .package-select {
     width: 100%;
     background: #151515 !important;
@@ -152,7 +154,6 @@ premiumStyles.textContent = `
     box-shadow: 0 0 10px rgba(229, 9, 20, 0.3);
   }
 
-  /* RED AND BLACK BUTTONS */
   .details-btn,
   .buy-btn {
     background: #1b1b1b !important;
@@ -469,6 +470,98 @@ premiumStyles.textContent = `
     text-align: center;
   }
 
+  /* RECENTLY VIEWED */
+  .recently-viewed-section {
+    margin: 25px 0 30px;
+    padding: 22px;
+    background: #111;
+    border: 1px solid #292929;
+    border-radius: 14px;
+  }
+
+  .recently-viewed-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+
+  .recently-viewed-header h2 {
+    margin: 0;
+    color: #fff;
+    font-size: 20px;
+  }
+
+  .recently-viewed-header p {
+    margin: 5px 0 0;
+    color: #999;
+    font-size: 12px;
+  }
+
+  .clear-recent-btn {
+    padding: 9px 13px;
+    background: #1b1b1b;
+    color: #ff555d;
+    border: 1px solid #66252a;
+    border-radius: 7px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+
+  .clear-recent-btn:hover {
+    background: #e50914;
+    color: #fff;
+  }
+
+  .recently-viewed-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(145px, 1fr));
+    gap: 12px;
+  }
+
+  .recent-product-card {
+    padding: 14px;
+    background: #191919;
+    border: 1px solid #303030;
+    border-radius: 10px;
+    text-align: center;
+  }
+
+  .recent-product-card img {
+    width: 38px;
+    height: 38px;
+    object-fit: contain;
+    margin-bottom: 9px;
+  }
+
+  .recent-product-card h3 {
+    margin: 0 0 10px;
+    color: #fff;
+    font-size: 13px;
+  }
+
+  .recent-product-card button {
+    width: 100%;
+    padding: 9px;
+    background: #222;
+    color: #fff;
+    border: 1px solid #e50914;
+    border-radius: 7px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+
+  .recent-product-card button:hover {
+    background: #e50914;
+  }
+
+  .recent-empty {
+    color: #999;
+    font-size: 13px;
+    padding: 8px 0;
+  }
+
   @media (max-width: 500px) {
     .product-modal-content {
       padding: 24px 18px;
@@ -476,6 +569,22 @@ premiumStyles.textContent = `
 
     .checkout-box {
       padding: 30px 20px;
+    }
+
+    .recently-viewed-section {
+      padding: 15px;
+    }
+
+    .recently-viewed-header {
+      align-items: flex-start;
+    }
+
+    .recently-viewed-header h2 {
+      font-size: 17px;
+    }
+
+    .recently-viewed-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
 `;
@@ -494,6 +603,146 @@ function escapeHTML(value) {
     };
     return entities[character];
   });
+}
+
+// RECENTLY VIEWED STORAGE
+function getRecentlyViewed() {
+  try {
+    const saved = JSON.parse(
+      localStorage.getItem(RECENT_STORAGE_KEY) || "[]"
+    );
+
+    if (!Array.isArray(saved)) return [];
+
+    return saved
+      .filter(name => products.some(product => product.name === name))
+      .slice(0, MAX_RECENT_PRODUCTS);
+  } catch (error) {
+    console.error("Could not load recently viewed products:", error);
+    return [];
+  }
+}
+
+// SAVE A RECENTLY VIEWED PRODUCT
+function addRecentlyViewed(product) {
+  if (!product) return;
+
+  try {
+    let recent = getRecentlyViewed();
+
+    recent = recent.filter(name => name !== product.name);
+    recent.unshift(product.name);
+    recent = recent.slice(0, MAX_RECENT_PRODUCTS);
+
+    localStorage.setItem(RECENT_STORAGE_KEY, JSON.stringify(recent));
+
+    renderRecentlyViewed();
+  } catch (error) {
+    console.error("Could not save recently viewed product:", error);
+  }
+}
+
+// CREATE RECENTLY VIEWED SECTION
+function createRecentlyViewedSection() {
+  if (!productGrid) return;
+
+  if (document.getElementById("recentlyViewedSection")) return;
+
+  const section = document.createElement("section");
+
+  section.id = "recentlyViewedSection";
+  section.className = "recently-viewed-section";
+
+  section.innerHTML = `
+    <div class="recently-viewed-header">
+      <div>
+        <h2>Recently Viewed</h2>
+        <p>Quickly return to subscriptions you viewed</p>
+      </div>
+
+      <button
+        type="button"
+        class="clear-recent-btn"
+        id="clearRecentlyViewed"
+      >
+        Clear History
+      </button>
+    </div>
+
+    <div
+      class="recently-viewed-grid"
+      id="recentlyViewedGrid"
+    ></div>
+  `;
+
+  productGrid.parentNode.insertBefore(section, productGrid);
+
+  document.getElementById("clearRecentlyViewed")
+    .addEventListener("click", clearRecentlyViewed);
+}
+
+// DISPLAY RECENTLY VIEWED PRODUCTS
+function renderRecentlyViewed() {
+  if (!productGrid) return;
+
+  createRecentlyViewedSection();
+
+  const recentGrid = document.getElementById("recentlyViewedGrid");
+
+  if (!recentGrid) return;
+
+  const recentNames = getRecentlyViewed();
+
+  if (recentNames.length === 0) {
+    recentGrid.innerHTML = `
+      <p class="recent-empty">
+        Products you view will appear here.
+      </p>
+    `;
+    return;
+  }
+
+  const recentProducts = recentNames
+    .map(name => products.find(product => product.name === name))
+    .filter(Boolean);
+
+  recentGrid.innerHTML = recentProducts.map(product => `
+    <div class="recent-product-card">
+      <img
+        src="${escapeHTML(product.logo)}"
+        alt="${escapeHTML(product.name)} logo"
+      >
+
+      <h3>${escapeHTML(product.name)}</h3>
+
+      <button
+        type="button"
+        data-recent-product="${escapeHTML(product.name)}"
+      >
+        View Again
+      </button>
+    </div>
+  `).join("");
+
+  recentGrid.querySelectorAll("[data-recent-product]").forEach(button => {
+    button.addEventListener("click", () => {
+      const product = products.find(
+        item => item.name === button.dataset.recentProduct
+      );
+
+      if (product) openProductModal(product);
+    });
+  });
+}
+
+// CLEAR RECENTLY VIEWED HISTORY
+function clearRecentlyViewed() {
+  try {
+    localStorage.removeItem(RECENT_STORAGE_KEY);
+    renderRecentlyViewed();
+  } catch (error) {
+    console.error("Could not clear recently viewed products:", error);
+  }
 }
 
 // CREATE PRODUCT DETAILS MODAL
@@ -521,6 +770,9 @@ function createProductModal() {
 // OPEN PRODUCT DETAILS
 function openProductModal(product) {
   createProductModal();
+
+  // Record this product in Recently Viewed
+  addRecentlyViewed(product);
 
   const content = document.getElementById("modalProductContent");
 
@@ -922,3 +1174,4 @@ document.querySelectorAll(".category").forEach(button => {
 
 // INITIALIZE
 renderProducts();
+renderRecentlyViewed();

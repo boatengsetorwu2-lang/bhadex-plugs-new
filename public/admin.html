@@ -452,6 +452,14 @@
         padding: 15px;
       }
     }
+    .inventory-list { display: grid; gap: 10px; margin-top: 14px; }
+    .inventory-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 13px; border: 1px solid #303030; border-radius: 10px; background: #111; }
+    .inventory-product { font-weight: 700; }
+    .inventory-state { display: block; margin-top: 4px; font-size: 12px; }
+    .inventory-state.available { color: #80d994; }
+    .inventory-state.unavailable { color: #ff8585; }
+    .inventory-row button { min-width: 145px; }
+    @media(max-width: 520px) { .inventory-row { align-items: flex-start; flex-direction: column; } .inventory-row button { width: 100%; } }
   </style>
 </head>
 
@@ -554,6 +562,14 @@
           <h3 id="cancelledOrders">0</h3>
         </div>
       </div>
+
+      <!-- PRODUCT INVENTORY -->
+      <section class="panel">
+        <h2>Product Inventory</h2>
+        <p class="muted">Control which subscriptions customers can purchase. Changes are saved automatically.</p>
+        <p id="inventoryMessage" class="message" aria-live="polite">Inventory will load after login.</p>
+        <div id="inventoryList" class="inventory-list"></div>
+      </section>
 
       <!-- CUSTOMER MANAGEMENT -->
       <section class="panel">
@@ -999,6 +1015,7 @@
 
         await loadOrders();
         await loadCustomers();
+        await loadInventory();
         startOrderPolling();
 
       } catch (error) {
@@ -1077,6 +1094,63 @@
         closeOrderDetails();
       }
     });
+
+    // PRODUCT INVENTORY
+    async function loadInventory() {
+      const message = document.getElementById("inventoryMessage");
+      const list = document.getElementById("inventoryList");
+      list.replaceChildren();
+      message.textContent = "Loading product inventory...";
+      try {
+        const data = await request("/api/admin/inventory");
+        const products = data.products || [];
+        if (!products.length) {
+          message.textContent = "No inventory products were returned.";
+          return;
+        }
+        message.textContent = "Use the buttons to change product availability.";
+        products.forEach(product => {
+          const row = document.createElement("div");
+          row.className = "inventory-row";
+          const info = document.createElement("div");
+          const name = document.createElement("div");
+          name.className = "inventory-product";
+          name.textContent = product.name;
+          const status = document.createElement("span");
+          status.className = "inventory-state " + (product.isAvailable ? "available" : "unavailable");
+          status.textContent = product.isAvailable ? "Available" : "Out of Stock";
+          info.appendChild(name);
+          info.appendChild(status);
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = product.isAvailable ? "secondary" : "primary";
+          button.textContent = product.isAvailable ? "Mark Out of Stock" : "Mark Available";
+          button.addEventListener("click", async () => {
+            button.disabled = true;
+            button.textContent = "Saving...";
+            message.textContent = "Updating " + product.name + "...";
+            try {
+              await request("/api/admin/inventory/" + encodeURIComponent(product.name), {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ isAvailable: !product.isAvailable })
+              });
+              message.textContent = product.name + " availability updated.";
+              await loadInventory();
+            } catch (error) {
+              message.textContent = "Could not update inventory: " + error.message;
+              button.disabled = false;
+              button.textContent = product.isAvailable ? "Mark Out of Stock" : "Mark Available";
+            }
+          });
+          row.appendChild(info);
+          row.appendChild(button);
+          list.appendChild(row);
+        });
+      } catch (error) {
+        if (error.message !== "Session expired") message.textContent = "Could not load inventory: " + error.message;
+      }
+    }
 
     // CUSTOMER MANAGEMENT: summaries from the latest 200 returned orders
     async function loadCustomers() {

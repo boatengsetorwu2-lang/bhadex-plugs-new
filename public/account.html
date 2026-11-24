@@ -372,6 +372,52 @@ body {
   }
 }
 .profile-photo-area{display:flex;align-items:center;gap:20px;flex-wrap:wrap;margin:18px 0}.profile-avatar{width:104px;height:104px;border-radius:50%;object-fit:cover;border:3px solid #ff263d;background:#25253a}.profile-initials{display:grid;place-items:center;font-size:38px;font-weight:800;color:#fff}.profile-photo-area input{display:block;max-width:280px;margin:8px 0}.settings-divider{height:1px;background:#39365e;margin:24px 0}.account-home-link{float:right;color:#ff6678;text-decoration:none}.secondary-button{background:#303047;color:#fff;border:1px solid #555;padding:12px 16px;border-radius:8px;cursor:pointer;margin:5px}.dashboard-card h3{margin:12px 0}.dashboard-nav a[href="#settings"]{border-color:#ff263d;color:#fff}@media(max-width:600px){.profile-photo-area{align-items:flex-start}.profile-avatar{width:82px;height:82px}}
+
+/* BHADEX PLUGS ACCOUNT CENTRE — brand-aligned layout */
+:root{--account-red:#ff263d;--account-bg:#080808;--account-panel:#111111;--account-panel-2:#171717;--account-border:#303030;--account-muted:#a9a9a9}
+html{scroll-padding-top:90px}
+body{background:var(--account-bg);color:#f7f7f7}
+.topbar{position:sticky;top:0;z-index:100;background:rgba(8,8,8,.96);backdrop-filter:blur(12px);border-bottom:1px solid var(--account-border);display:flex;align-items:center;justify-content:space-between}
+.brand{font-size:17px;letter-spacing:1.8px}
+.account-home-link{float:none;color:var(--account-red);font-weight:700}
+.dashboard{width:min(1180px,94%);margin:28px auto 60px}
+.welcome{background:radial-gradient(circle at 85% 15%,rgba(255,38,61,.18),transparent 35%),linear-gradient(120deg,#171717,#0b0b0b);border:1px solid #3a2024;border-left:4px solid var(--account-red);box-shadow:0 12px 35px rgba(0,0,0,.28);padding:clamp(22px,4vw,36px)}
+.welcome p{color:#c3c3c3}
+.dashboard-nav{position:sticky;top:65px;z-index:50;padding:12px;margin:0 0 25px;background:rgba(12,12,12,.96);border:1px solid var(--account-border);border-radius:13px;box-shadow:0 8px 24px rgba(0,0,0,.25);overflow-x:auto;flex-wrap:nowrap;scrollbar-width:thin}
+.dashboard-nav a{white-space:nowrap;background:#171717;border:1px solid #333;color:#dedede;padding:10px 14px;border-radius:8px}
+.dashboard-nav a:hover,.dashboard-nav a[href="#settings"]{background:rgba(255,38,61,.12);border-color:var(--account-red);color:#fff;transform:none}
+.summary-grid{gap:14px}
+.summary-card{background:linear-gradient(145deg,#191919,#101010);border:1px solid var(--account-border);border-left:3px solid var(--account-red);border-radius:12px;box-shadow:0 6px 18px rgba(0,0,0,.15)}
+.summary-card:nth-child(n){border-left-color:var(--account-red)}
+.summary-card p,.muted{color:var(--account-muted)}
+.summary-card h2{color:#fff}
+.dashboard-card{background:var(--account-panel);border:1px solid var(--account-border);border-radius:14px;padding:clamp(18px,3vw,27px);box-shadow:0 8px 24px rgba(0,0,0,.18);margin-bottom:18px}
+.dashboard-card h2{display:flex;align-items:center;gap:10px;padding-bottom:12px;border-bottom:1px solid #292929}
+.dashboard-card h2:before{content:"";display:inline-block;width:4px;height:21px;border-radius:4px;background:var(--account-red)}
+.dashboard-card h3{color:#f4f4f4}
+.form-group label,label{color:#e4e4e4}
+.form-group input,.form-group select,.form-group textarea,input,select,textarea{background:#090909;border:1px solid #383838;color:#f5f5f5;border-radius:9px}
+.form-group input:focus,input:focus,select:focus,textarea:focus{border-color:var(--account-red);box-shadow:0 0 0 3px rgba(255,38,61,.12);outline:none}
+.primary-button{background:linear-gradient(110deg,#d9162d,#ff263d);color:#fff;border:1px solid #ff4054;box-shadow:0 5px 14px rgba(255,38,61,.12)}
+.primary-button:hover{filter:brightness(1.1);transform:translateY(-1px)}
+.secondary-button{background:#202020;border:1px solid #444;color:#f5f5f5}
+.secondary-button:hover{background:#2b2b2b;border-color:#777}
+.logout-button{background:linear-gradient(110deg,#b51226,#ff263d)}
+.order{border-color:#303030}
+.order-timeline{background:#0b0b0b;border-color:#333}
+.order-timeline h3,.timeline-event strong{color:#fff}
+.timeline-event small,.timeline-event p{color:#aaa}
+.profile-avatar{border-color:var(--account-red);background:#202020}
+.settings-divider{background:#303030}
+.support-links a{border:1px solid #383838}
+.email-support{background:#171717;border-color:var(--account-red)}
+.whatsapp-support{background:#126b3c}
+.message{color:#ff7a87}
+.success,.status{color:#56d98a!important}
+.reference{color:#aaa}
+@media(max-width:750px){.dashboard{margin-top:18px}.dashboard-nav{top:59px}.dashboard-nav a{flex:0 0 auto;text-align:center}.summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:430px){.summary-card{padding:16px}.summary-card h2{font-size:26px}.welcome{border-radius:13px}.dashboard-card{border-radius:12px}}
+
 </style>
 </head>
 

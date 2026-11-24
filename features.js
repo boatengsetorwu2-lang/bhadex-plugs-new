@@ -153,10 +153,10 @@ module.exports = function createFeatureRouter({ pool, requireCustomer, requireAd
       const customer = await customerEmail(req);
       if (!customer) return res.status(404).json({ error: "Customer account not found." });
 
-      const [summary, history] = await Promise.all([
+      const [summary, history, reservations] = await Promise.all([
         pool.query(
           `SELECT COALESCE(SUM(points), 0)::int AS points,
-                  COUNT(*)::int AS earned_orders
+                  COUNT(*) FILTER (WHERE points > 0)::int AS earned_orders
            FROM loyalty_ledger WHERE customer_id = $1`,
           [customer.id]
         ),
@@ -167,12 +167,23 @@ module.exports = function createFeatureRouter({ pool, requireCustomer, requireAd
            ORDER BY created_at DESC
            LIMIT 50`,
           [customer.id]
+        ),
+        pool.query(
+          `SELECT COALESCE(SUM(points), 0)::int AS reserved
+           FROM loyalty_redemptions
+           WHERE customer_id = $1 AND status = 'PENDING' AND expires_at > NOW()`,
+          [customer.id]
         )
       ]);
 
+      const totalPoints = Number(summary.rows[0].points || 0);
+      const reservedPoints = Number(reservations.rows[0].reserved || 0);
       res.json({
-        points: summary.rows[0].points,
+        points: Math.max(0, totalPoints - reservedPoints),
+        totalPoints,
+        reservedPoints,
         earnedOrders: summary.rows[0].earned_orders,
+        redemptionRate: 100,
         history: history.rows
       });
     } catch (error) {

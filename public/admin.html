@@ -571,6 +571,21 @@
         <div id="inventoryList" class="inventory-list"></div>
       </section>
 
+      <!-- COUPON MANAGEMENT -->
+      <section class="panel">
+        <h2>Coupon & Promo Codes</h2>
+        <p class="muted">Create percentage discounts, set optional expiry dates and usage limits, and activate or deactivate codes.</p>
+        <form id="couponForm" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:16px 0;">
+          <input id="couponCodeInput" type="text" maxlength="30" placeholder="Coupon code (e.g. WELCOME10)" required>
+          <input id="couponDiscountInput" type="number" min="1" max="50" step="1" placeholder="Discount %" required>
+          <input id="couponMaxUsesInput" type="number" min="1" step="1" placeholder="Max uses (optional)">
+          <input id="couponExpiryInput" type="datetime-local" aria-label="Coupon expiry date (optional)">
+          <button class="primary" type="submit">Create Coupon</button>
+        </form>
+        <p id="couponsMessage" class="message" aria-live="polite">Coupons will load after login.</p>
+        <div id="couponsList" class="inventory-list"></div>
+      </section>
+
       <!-- PRODUCT REVIEW MODERATION -->
       <section class="panel">
         <h2>Product Reviews</h2>
@@ -1024,6 +1039,7 @@
         await loadOrders();
         await loadCustomers();
         await loadInventory();
+        await loadCoupons();
         await loadAdminReviews();
         startOrderPolling();
 
@@ -1258,6 +1274,94 @@
         }
       }
     }
+
+    // COUPON MANAGEMENT
+    async function loadCoupons() {
+      const message = document.getElementById("couponsMessage");
+      const list = document.getElementById("couponsList");
+      list.replaceChildren();
+      message.textContent = "Loading coupons...";
+      try {
+        const data = await request("/api/features/admin/coupons");
+        const coupons = data.coupons || [];
+        if (!coupons.length) {
+          message.textContent = "No coupons created yet.";
+          return;
+        }
+        message.textContent = coupons.length + " coupon(s) found.";
+        coupons.forEach(coupon => {
+          const row = document.createElement("div");
+          row.className = "inventory-row";
+          const info = document.createElement("div");
+          const name = document.createElement("div");
+          name.className = "inventory-product";
+          name.textContent = coupon.code + " · " + coupon.discount_percent + "% off";
+          const detail = document.createElement("span");
+          detail.className = "inventory-state";
+          const limit = coupon.max_uses == null ? "Unlimited uses" : Number(coupon.uses) + " / " + Number(coupon.max_uses) + " uses";
+          const expiry = coupon.expires_at ? "Expires " + formatDate(coupon.expires_at) : "No expiry";
+          detail.textContent = limit + " · " + expiry;
+          const status = document.createElement("span");
+          status.className = "inventory-state " + (coupon.active ? "available" : "unavailable");
+          status.textContent = coupon.active ? "Active" : "Inactive";
+          info.append(name, detail, status);
+
+          const toggle = document.createElement("button");
+          toggle.type = "button";
+          toggle.className = coupon.active ? "secondary" : "primary";
+          toggle.textContent = coupon.active ? "Deactivate" : "Activate";
+          toggle.addEventListener("click", async () => {
+            toggle.disabled = true;
+            toggle.textContent = "Saving...";
+            try {
+              await request("/api/features/admin/coupons/" + encodeURIComponent(coupon.id), {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ active: !coupon.active })
+              });
+              await loadCoupons();
+            } catch (error) {
+              message.textContent = "Could not update coupon: " + error.message;
+              toggle.disabled = false;
+              toggle.textContent = coupon.active ? "Deactivate" : "Activate";
+            }
+          });
+          row.append(info, toggle);
+          list.appendChild(row);
+        });
+      } catch (error) {
+        if (error.message !== "Session expired") message.textContent = "Could not load coupons: " + error.message;
+      }
+    }
+
+    document.getElementById("couponForm").addEventListener("submit", async event => {
+      event.preventDefault();
+      const message = document.getElementById("couponsMessage");
+      const button = event.currentTarget.querySelector('button[type="submit"]');
+      button.disabled = true;
+      button.textContent = "Creating...";
+      try {
+        const expiresInput = document.getElementById("couponExpiryInput").value;
+        await request("/api/features/admin/coupons", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            code: document.getElementById("couponCodeInput").value,
+            discountPercent: Number(document.getElementById("couponDiscountInput").value),
+            maxUses: document.getElementById("couponMaxUsesInput").value || null,
+            expiresAt: expiresInput ? new Date(expiresInput).toISOString() : null
+          })
+        });
+        event.currentTarget.reset();
+        message.textContent = "Coupon created successfully.";
+        await loadCoupons();
+      } catch (error) {
+        message.textContent = "Could not create coupon: " + error.message;
+      } finally {
+        button.disabled = false;
+        button.textContent = "Create Coupon";
+      }
+    });
 
     // PRODUCT REVIEW MODERATION
     async function loadAdminReviews() {

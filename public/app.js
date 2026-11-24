@@ -1000,13 +1000,6 @@ function startCheckout(productName, packageIndex) {
   document.getElementById("checkoutError").textContent = "";
   document.getElementById("checkoutError").classList.remove("visible");
 
-  const loyaltyInput = document.getElementById("checkoutLoyaltyPoints");
-  const loyaltyPoints = Number(loyaltyInput?.value || 0);
-  if (!Number.isInteger(loyaltyPoints) || loyaltyPoints < 0 || (loyaltyPoints > 0 && (loyaltyPoints < 100 || loyaltyPoints % 100 !== 0))) {
-    showCheckoutError("Enter points in multiples of 100.");
-    return;
-  }
-
   const submitButton = document.getElementById("checkoutSubmit");
   submitButton.disabled = false;
   submitButton.textContent = "Continue to Payment";
@@ -1052,6 +1045,14 @@ async function submitCheckout(event) {
   if (!emailPattern.test(email)) {
     showCheckoutError("Please enter a valid email address.");
     emailInput.focus();
+    return;
+  }
+
+  const loyaltyInput = document.getElementById("checkoutLoyaltyPoints");
+  const loyaltyPoints = Number(loyaltyInput?.value || 0);
+  if (!Number.isInteger(loyaltyPoints) || loyaltyPoints < 0 ||
+      (loyaltyPoints > 0 && (loyaltyPoints < 100 || loyaltyPoints % 100 !== 0))) {
+    showCheckoutError("Enter points in multiples of 100.");
     return;
   }
 

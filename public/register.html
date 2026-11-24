@@ -127,6 +127,15 @@
         autocomplete="email"
       >
 
+      <label for="referralCode">Referral Code (optional)</label>
+      <input
+        id="referralCode"
+        type="text"
+        maxlength="30"
+        placeholder="Enter a friend's referral code"
+        autocomplete="off"
+      >
+
       <label for="password">Password</label>
       <input
         id="password"
@@ -211,6 +220,10 @@ const registerForm = document.getElementById("registerForm");
 const verificationForm = document.getElementById("verificationForm");
 
 const message = document.getElementById("message");
+const referralFromLink = new URLSearchParams(window.location.search).get("ref");
+if (referralFromLink) {
+  document.getElementById("referralCode").value = referralFromLink.trim().toUpperCase();
+}
 
 const registerButton = document.getElementById("registerButton");
 const verifyButton = document.getElementById("verifyButton");
@@ -268,7 +281,8 @@ registerForm.addEventListener("submit", async (event) => {
       body: JSON.stringify({
         name,
         email,
-        password
+        password,
+        referralCode: document.getElementById("referralCode").value.trim()
       })
     });
 

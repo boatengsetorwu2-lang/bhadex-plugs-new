@@ -572,7 +572,7 @@ module.exports = function createFeatureRouter({ pool, requireCustomer, requireAd
       const expiresAt = req.body?.expiresAt ? new Date(req.body.expiresAt) : null;
       if (!code || !Number.isInteger(discount) || discount < 1 || discount > 50 ||
           (maxUses !== null && (!Number.isInteger(maxUses) || maxUses < 1)) ||
-          (expiresAt && Number.isNaN(expiresAt.getTime()))) {
+          (expiresAt && (Number.isNaN(expiresAt.getTime()) || expiresAt <= new Date()))) {
         return res.status(400).json({ error: "Enter a code, a discount from 1–50%, and valid optional limits." });
       }
       const result = await pool.query(

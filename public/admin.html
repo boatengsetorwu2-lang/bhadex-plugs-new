@@ -620,6 +620,38 @@
         <div id="adminReferralsList" class="inventory-list"></div>
       </section>
 
+      <!-- ABANDONED CHECKOUT RECOVERY -->
+      <section class="panel">
+        <h2>Abandoned Checkout Recovery</h2>
+        <p class="muted">Checkout attempts are marked abandoned after 30 minutes without a confirmed payment. Successful payments are marked completed automatically.</p>
+        <div class="customer-summary">
+          <div class="stat"><p>Total Checkouts</p><h3 id="checkoutTotal">0</h3></div>
+          <div class="stat"><p>Awaiting Payment</p><h3 id="checkoutPending">0</h3></div>
+          <div class="stat"><p>Abandoned</p><h3 id="checkoutAbandoned">0</h3></div>
+          <div class="stat"><p>Completed</p><h3 id="checkoutCompleted">0</h3></div>
+        </div>
+        <div class="filters" style="margin-top:14px;">
+          <button type="button" class="secondary" id="refreshCheckoutsBtn">Refresh Checkouts</button>
+        </div>
+        <p id="abandonedCheckoutsMessage" class="message">Checkout records will load after login.</p>
+        <div class="table-wrap">
+          <table class="customer-table">
+            <thead>
+              <tr>
+                <th>Customer Email</th>
+                <th>Product</th>
+                <th>Package</th>
+                <th>Amount</th>
+                <th>Status</th>
+                <th>Started</th>
+                <th>Reference</th>
+              </tr>
+            </thead>
+            <tbody id="abandonedCheckoutsTable"></tbody>
+          </table>
+        </div>
+      </section>
+
       <!-- CUSTOMER MANAGEMENT -->
       <section class="panel">
         <h2>Customer Management</h2>
@@ -1066,6 +1098,7 @@
         await loadCustomers();
         await loadInventory();
         await loadAdminReferrals();
+        await loadAbandonedCheckouts();
         await loadCoupons();
         await loadAdminReviews();
         await loadAdminSupport();
@@ -1335,6 +1368,52 @@
         message.textContent = "Could not load referrals: " + error.message;
       }
     }
+
+    // ABANDONED CHECKOUTS
+    async function loadAbandonedCheckouts() {
+      const message = document.getElementById("abandonedCheckoutsMessage");
+      const table = document.getElementById("abandonedCheckoutsTable");
+      table.replaceChildren();
+      message.textContent = "Loading checkout records...";
+      try {
+        const data = await request("/api/admin/abandoned-checkouts");
+        const stats = data.stats || {};
+        document.getElementById("checkoutTotal").textContent = Number(stats.total || 0).toLocaleString();
+        document.getElementById("checkoutPending").textContent = Number(stats.pending || 0).toLocaleString();
+        document.getElementById("checkoutAbandoned").textContent = Number(stats.abandoned || 0).toLocaleString();
+        document.getElementById("checkoutCompleted").textContent = Number(stats.completed || 0).toLocaleString();
+
+        const checkouts = Array.isArray(data.checkouts) ? data.checkouts : [];
+        if (!checkouts.length) {
+          message.textContent = "No checkout attempts have been recorded yet.";
+          return;
+        }
+        message.textContent = checkouts.length + " checkout record(s) shown (latest 500).";
+        checkouts.forEach(item => {
+          const row = document.createElement("tr");
+          const values = [
+            item.customer_email,
+            item.product,
+            item.package_name,
+            money(item.amount),
+            item.status,
+            formatDate(item.created_at),
+            item.checkout_reference
+          ];
+          values.forEach((value, index) => {
+            const cell = document.createElement("td");
+            cell.textContent = value == null ? "—" : String(value);
+            if (index === 4) cell.appendChild(document.createTextNode(""));
+            row.appendChild(cell);
+          });
+          table.appendChild(row);
+        });
+      } catch (error) {
+        message.textContent = "Could not load checkout records: " + error.message;
+      }
+    }
+
+    document.getElementById("refreshCheckoutsBtn").addEventListener("click", loadAbandonedCheckouts);
 
     // CUSTOMER MANAGEMENT: summaries from the latest 200 returned orders
     async function loadCustomers() {

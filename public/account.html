@@ -245,6 +245,40 @@ body {
   font-weight: bold;
 }
 
+.order-timeline {
+  margin-top: 20px;
+  padding: 18px;
+  background: #10101c;
+  border: 1px solid #34344e;
+  border-radius: 12px;
+}
+.order-timeline h3 { margin: 0 0 16px; color: white; }
+.timeline-event {
+  display: flex;
+  gap: 12px;
+  position: relative;
+  padding: 0 0 18px;
+}
+.timeline-event:last-child { padding-bottom: 0; }
+.timeline-dot {
+  flex: 0 0 13px;
+  width: 13px;
+  height: 13px;
+  margin-top: 3px;
+  border-radius: 50%;
+  background: #55556f;
+  border: 2px solid #77778f;
+}
+.timeline-event.complete .timeline-dot {
+  background: #22c55e;
+  border-color: #22c55e;
+  box-shadow: 0 0 0 4px rgba(34,197,94,.12);
+}
+.timeline-event.pending .timeline-dot { background: #55556f; }
+.timeline-event strong { display: block; color: #f5f5ff; }
+.timeline-event small { display: block; margin-top: 5px; color: #aaaacb; }
+.timeline-event p { margin: 0; color: #aaaacb; font-size: 13px; }
+
 .support-links {
   display: flex;
   flex-wrap: wrap;
@@ -803,6 +837,54 @@ async function trackOrder(reference) {
       resultBox.appendChild(paragraph);
     });
 
+    // Load the private, account-scoped order timeline.
+    const timelineBox = document.createElement("section");
+    timelineBox.className = "order-timeline";
+    const timelineHeading = document.createElement("h3");
+    timelineHeading.textContent = "Live Order Timeline";
+    timelineBox.appendChild(timelineHeading);
+
+    try {
+      const timelineResult = await apiRequest(
+        "/api/features/customer/order-timeline/" + encodeURIComponent(reference)
+      );
+      const events = Array.isArray(timelineResult.events) ? timelineResult.events : [];
+
+      events.forEach(event => {
+        const row = document.createElement("div");
+        row.className = "timeline-event " +
+          (event.status === "complete" ? "complete" : "pending");
+
+        const dot = document.createElement("span");
+        dot.className = "timeline-dot";
+        dot.setAttribute("aria-hidden", "true");
+
+        const copy = document.createElement("div");
+        const title = document.createElement("strong");
+        title.textContent = event.label || "Order update";
+        const date = document.createElement("small");
+        date.textContent = event.date
+          ? new Date(event.date).toLocaleString()
+          : (event.status === "complete" ? "Completed" : "Waiting for this step");
+
+        copy.append(title, date);
+        row.append(dot, copy);
+        timelineBox.appendChild(row);
+      });
+
+      if (!events.length) {
+        const empty = document.createElement("p");
+        empty.textContent = "Timeline updates are not available yet.";
+        timelineBox.appendChild(empty);
+      }
+    } catch (timelineError) {
+      const note = document.createElement("p");
+      note.textContent = "Order details loaded, but timeline updates could not be retrieved.";
+      timelineBox.appendChild(note);
+      console.error("Timeline load error:", timelineError);
+    }
+
+    resultBox.appendChild(timelineBox);
     resultBox.className = "message success";
 
   } catch (error) {

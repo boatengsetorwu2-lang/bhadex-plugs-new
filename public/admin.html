@@ -1441,6 +1441,12 @@
           reply.style.color = "white";
           reply.style.border = "1px solid var(--border)";
 
+          const saveFeedback = document.createElement("p");
+          saveFeedback.className = "message";
+          saveFeedback.setAttribute("aria-live", "polite");
+          saveFeedback.style.gridColumn = "1 / -1";
+          saveFeedback.style.fontWeight = "600";
+
           const save = document.createElement("button");
           save.type = "button";
           save.className = "primary";
@@ -1459,12 +1465,16 @@
                 })
               });
               const replyWasEntered = Boolean(reply.value.trim());
-              const statusMessage = "Ticket " + (ticket.ticket_reference || ticket.id) + " updated. " +
+              saveFeedback.textContent = "Ticket updated. " +
                 (result.emailSent ? "A reply notification email was sent." :
                   (replyWasEntered ? "The reply is saved, but the notification email was not sent. Check Resend settings and Render logs." :
                     "The customer can see the update in their account."));
-              await loadAdminSupport();
-              document.getElementById("adminSupportMessage").textContent = statusMessage;
+              save.disabled = false;
+              save.textContent = "Saved";
+              ticket.admin_reply = reply.value;
+              if (typeof result.emailSent === "undefined") {
+                saveFeedback.textContent = "Ticket updated. Email status was not returned by the server.";
+              }
             } catch (error) {
               message.textContent = "Could not update ticket: " + error.message;
               save.disabled = false;
@@ -1472,7 +1482,7 @@
             }
           });
 
-          controls.append(priority, status, reply, save);
+          controls.append(priority, status, reply, save, saveFeedback);
           card.appendChild(controls);
           container.appendChild(card);
         });

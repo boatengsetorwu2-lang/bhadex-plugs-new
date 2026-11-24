@@ -57,6 +57,29 @@ async function initializeDatabase() {
   `);
 
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS abandoned_checkouts (
+      id BIGSERIAL PRIMARY KEY,
+      checkout_reference VARCHAR(100) UNIQUE NOT NULL,
+      customer_email VARCHAR(255) NOT NULL,
+      product VARCHAR(100) NOT NULL,
+      package_name VARCHAR(50) NOT NULL,
+      amount NUMERIC(12,2) NOT NULL,
+      status VARCHAR(20) NOT NULL DEFAULT 'PENDING'
+        CHECK (status IN ('PENDING','ABANDONED','COMPLETED')),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      completed_at TIMESTAMPTZ
+    );
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS abandoned_checkouts_created_idx
+      ON abandoned_checkouts(created_at DESC);
+    CREATE INDEX IF NOT EXISTS abandoned_checkouts_email_idx
+      ON abandoned_checkouts(LOWER(customer_email));
+  `);
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS customers (
       id BIGSERIAL PRIMARY KEY,
       name VARCHAR(100) NOT NULL,

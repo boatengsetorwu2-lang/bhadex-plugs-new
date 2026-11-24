@@ -571,6 +571,14 @@
         <div id="inventoryList" class="inventory-list"></div>
       </section>
 
+      <!-- SUPPORT TICKET MANAGEMENT -->
+      <section class="panel">
+        <h2>Customer Support Tickets</h2>
+        <p class="muted">Review customer requests, set priority and status, and send replies visible in the customer's account.</p>
+        <p id="adminSupportMessage" class="message" aria-live="polite">Support tickets will load after login.</p>
+        <div id="adminSupportList"></div>
+      </section>
+
       <!-- COUPON MANAGEMENT -->
       <section class="panel">
         <h2>Coupon & Promo Codes</h2>
@@ -1041,6 +1049,7 @@
         await loadInventory();
         await loadCoupons();
         await loadAdminReviews();
+        await loadAdminSupport();
         startOrderPolling();
 
       } catch (error) {
@@ -1363,6 +1372,110 @@
       }
     });
 
+    // CUSTOMER SUPPORT TICKET MANAGEMENT
+    async function loadAdminSupport() {
+      const container = document.getElementById("adminSupportList");
+      const message = document.getElementById("adminSupportMessage");
+      container.replaceChildren();
+      message.textContent = "Loading support tickets...";
+      try {
+        const data = await request("/api/features/admin/support");
+        const tickets = Array.isArray(data.tickets) ? data.tickets : [];
+        if (!tickets.length) {
+          message.textContent = "No support tickets have been submitted yet.";
+          return;
+        }
+        message.textContent = tickets.length + " support ticket(s) found.";
+        tickets.forEach(ticket => {
+          const card = document.createElement("article");
+          card.className = "notification-item";
+          card.style.marginBottom = "14px";
+
+          const title = document.createElement("strong");
+          title.textContent = (ticket.ticket_reference || ("Ticket #" + ticket.id)) + " · " + (ticket.subject || "Support request");
+          const meta = document.createElement("p");
+          meta.className = "muted";
+          meta.textContent = (ticket.customer_email || "Customer") +
+            " · Submitted: " + formatDate(ticket.created_at) +
+            (ticket.order_reference ? " · Order: " + ticket.order_reference : "");
+          const body = document.createElement("p");
+          body.style.whiteSpace = "pre-wrap";
+          body.style.margin = "10px 0";
+          body.textContent = ticket.message || "";
+          card.append(title, meta, body);
+
+          const controls = document.createElement("div");
+          controls.style.display = "grid";
+          controls.style.gridTemplateColumns = "repeat(auto-fit,minmax(150px,1fr))";
+          controls.style.gap = "9px";
+          controls.style.marginTop = "12px";
+
+          const priority = document.createElement("select");
+          ["LOW", "NORMAL", "HIGH"].forEach(value => {
+            const option = document.createElement("option");
+            option.value = value;
+            option.textContent = "Priority: " + value;
+            priority.appendChild(option);
+          });
+          priority.value = ticket.priority || "NORMAL";
+
+          const status = document.createElement("select");
+          [["OPEN","Open"],["IN_PROGRESS","In Progress"],["RESOLVED","Resolved"],["CLOSED","Closed"]].forEach(([value,label]) => {
+            const option = document.createElement("option");
+            option.value = value;
+            option.textContent = "Status: " + label;
+            status.appendChild(option);
+          });
+          status.value = ticket.status || "OPEN";
+
+          const reply = document.createElement("textarea");
+          reply.rows = 3;
+          reply.maxLength = 3000;
+          reply.placeholder = "Write a reply for the customer...";
+          reply.value = ticket.admin_reply || "";
+          reply.style.gridColumn = "1 / -1";
+          reply.style.width = "100%";
+          reply.style.padding = "12px";
+          reply.style.borderRadius = "7px";
+          reply.style.background = "#090909";
+          reply.style.color = "white";
+          reply.style.border = "1px solid var(--border)";
+
+          const save = document.createElement("button");
+          save.type = "button";
+          save.className = "primary";
+          save.textContent = "Save & Send Reply";
+          save.addEventListener("click", async () => {
+            save.disabled = true;
+            save.textContent = "Saving...";
+            try {
+              await request("/api/features/admin/support/" + encodeURIComponent(ticket.id), {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  status: status.value,
+                  priority: priority.value,
+                  reply: reply.value
+                })
+              });
+              message.textContent = "Ticket " + (ticket.ticket_reference || ticket.id) + " updated. The customer can see your reply in their account.";
+              await loadAdminSupport();
+            } catch (error) {
+              message.textContent = "Could not update ticket: " + error.message;
+              save.disabled = false;
+              save.textContent = "Save & Send Reply";
+            }
+          });
+
+          controls.append(priority, status, reply, save);
+          card.appendChild(controls);
+          container.appendChild(card);
+        });
+      } catch (error) {
+        if (error.message !== "Session expired") message.textContent = "Could not load support tickets: " + error.message;
+      }
+    }
+
     // PRODUCT REVIEW MODERATION
     async function loadAdminReviews() {
       const container = document.getElementById("adminReviewsList");
@@ -1627,6 +1740,7 @@
         await loadOrders();
         await loadCustomers();
         await loadAdminReviews();
+        await loadAdminSupport();
         await checkForNewOrders();
       }
     );

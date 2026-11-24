@@ -292,6 +292,60 @@ async function sendOrderConfirmationEmail(order) {
   );
 }
 
+
+ 
+// ORDER STATUS UPDATE EMAIL
+async function sendOrderStatusEmail(order) {
+  if (!process.env.RESEND_API_KEY || !process.env.RESEND_FROM_EMAIL) {
+    throw new Error("Resend email settings are missing.");
+  }
+
+  const baseUrl = String(process.env.BASE_URL || "https://bhadex-plugs.onrender.com").replace(/\/+$/, "");
+  const trackingUrl = baseUrl + "/track.html";
+  const statusLabels = {
+    PENDING: "Pending",
+    PROCESSING: "Processing",
+    DELIVERED: "Delivered",
+    CANCELLED: "Cancelled"
+  };
+  const label = statusLabels[order.fulfillment_status] || order.fulfillment_status;
+
+  await axios.post(
+    "https://api.resend.com/emails",
+    {
+      from: process.env.RESEND_FROM_EMAIL,
+      to: [order.customer_email],
+      subject: "BHADEX PLUGS Order Update: " + label,
+      html: `
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:25px;color:#222;">
+          <h2 style="color:#d71920;">BHADEX PLUGS</h2>
+          <h3>Your order status has changed</h3>
+          <p>Hello,</p>
+          <p>The status of your order has been updated.</p>
+          <p><strong>Order Reference:</strong> ${escapeHtml(order.reference)}</p>
+          <p><strong>Product:</strong> ${escapeHtml(order.product)}</p>
+          <p><strong>Package:</strong> ${escapeHtml(order.package_name)}</p>
+          <p><strong>Order Status:</strong> ${escapeHtml(label)}</p>
+          <p>
+            <a href="${escapeHtml(trackingUrl)}"
+              style="background:#d71920;color:white;padding:12px 20px;text-decoration:none;border-radius:5px;">
+              Track Your Order
+            </a>
+          </p>
+          <p>Thank you for choosing BHADEX PLUGS.</p>
+          <p><strong>DIGITAL ACCESS, ELEVATED</strong></p>
+        </div>
+      `
+    },
+    {
+      headers: {
+        Authorization: "Bearer " + process.env.RESEND_API_KEY,
+        "Content-Type": "application/json"
+      }
+    }
+  );
+}
+
 // SAVE PAID ORDER AND SEND EMAIL ONCE
 async function savePaidOrder(payment, metadata) {
   const reference = payment.reference;
@@ -1619,6 +1673,22 @@ app.patch(
         });
       }
 
+      const previousOrder = await pool.query(
+        `SELECT reference, customer_email, product, package AS package_name,
+                fulfillment_status
+         FROM orders
+         WHERE reference = $1 AND status = 'PAID'
+         LIMIT 1`,
+        [reference]
+      );
+
+      if (previousOrder.rows.length === 0) {
+        return res.status(404).json({
+          error: "Paid order not found."
+        });
+      }
+
+      const oldStatus = previousOrder.rows[0].fulfillment_status;
       const result = await pool.query(
         `UPDATE orders
          SET
@@ -1640,6 +1710,27 @@ app.patch(
         return res.status(404).json({
           error: "Paid order not found."
         });
+      }
+
+      let statusEmailSent = false;
+      let statusEmailMessage = "The order status was unchanged, so no email was sent.";
+      if (oldStatus !== fulfillmentStatus) {
+        try {
+          await sendOrderStatusEmail({
+            ...previousOrder.rows[0],
+            fulfillment_status: fulfillmentStatus
+          });
+          statusEmailSent = true;
+          statusEmailMessage = "Resend accepted the order status notification.";
+        } catch (emailError) {
+          const providerMessage =
+            emailError.response?.data?.message ||
+            emailError.response?.data?.error ||
+            emailError.message ||
+            "Unknown email error";
+          statusEmailMessage = "Order status email was not sent: " + String(providerMessage).slice(0, 400);
+          console.error("Order status email error:", emailError.response?.data || emailError.message);
+        }
       }
 
       if (fulfillmentStatus === "DELIVERED") {
@@ -1666,7 +1757,9 @@ app.patch(
 
       return res.json({
         success: true,
-        order: result.rows[0]
+        order: result.rows[0],
+        statusEmailSent,
+        statusEmailMessage
       });
     } catch (error) {
       console.error("Delivery update error:", error.message);

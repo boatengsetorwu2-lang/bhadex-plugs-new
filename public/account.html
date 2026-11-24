@@ -958,6 +958,20 @@ function createOrderElement(order) {
 
   item.appendChild(trackButton);
 
+  if (String(order.status || "").toUpperCase() === "PAID") {
+    const reorderButton = document.createElement("button");
+    reorderButton.className = "secondary-button";
+    reorderButton.textContent = "Reorder";
+    reorderButton.style.marginLeft = "8px";
+    reorderButton.addEventListener("click", () => {
+      const params = new URLSearchParams();
+      params.set("reorderProduct", order.product || "");
+      params.set("reorderPackage", order.package || "");
+      window.location.href = "marketplace.html?" + params.toString();
+    });
+    item.appendChild(reorderButton);
+  }
+
   return item;
 }
 

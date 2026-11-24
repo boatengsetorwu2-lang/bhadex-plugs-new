@@ -42,6 +42,18 @@ module.exports = function createFeatureRouter({ pool, requireCustomer, requireAd
   const clean = (value, max = 500) => String(value ?? "").trim().slice(0, max);
   const validEmail = value => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
+  async function logAdminActivity(req, action, details) {
+    try {
+      await pool.query(
+        "INSERT INTO admin_activity_log(actor, action, details) VALUES($1, $2, $3)",
+        ["Admin", clean(action, 80), clean(details, 500)]
+      );
+    } catch (error) {
+      console.error("Admin activity log error:", error.message);
+    }
+  }
+
+
   async function customerEmail(req) {
     const result = await pool.query(
       "SELECT id, name, email, referral_code FROM customers WHERE id = $1 LIMIT 1",
@@ -766,6 +778,7 @@ module.exports = function createFeatureRouter({ pool, requireCustomer, requireAd
         "INSERT INTO store_announcements(message, link_url) VALUES($1,$2) RETURNING *",
         [message, linkUrl || null]
       );
+      await logAdminActivity(req, "Announcement created", message);
       res.status(201).json({ announcement: result.rows[0] });
     } catch (error) {
       console.error("Announcement create error:", error.message);
@@ -794,6 +807,7 @@ module.exports = function createFeatureRouter({ pool, requireCustomer, requireAd
         [active, availability, id]
       );
       if (!result.rows.length) return res.status(404).json({ error: "Product not found." });
+      await logAdminActivity(req, "Product updated", result.rows[0].name + " · " + availability + " · " + (active ? "Active" : "Hidden"));
       res.json({ product: result.rows[0] });
     } catch (error) {
       console.error("Product update error:", error.message);
@@ -849,6 +863,7 @@ module.exports = function createFeatureRouter({ pool, requireCustomer, requireAd
         "INSERT INTO store_coupons(code, discount_percent, max_uses, expires_at) VALUES($1,$2,$3,$4) RETURNING id, code, discount_percent, active, expires_at, max_uses, uses",
         [code, discount, maxUses, expiresAt]
       );
+      await logAdminActivity(req, "Coupon created", code + " · " + discount + "%");
       res.status(201).json({ coupon: result.rows[0] });
     } catch (error) {
       if (error.code === "23505") return res.status(409).json({ error: "That coupon code already exists." });
@@ -868,6 +883,7 @@ module.exports = function createFeatureRouter({ pool, requireCustomer, requireAd
         [req.body.active, id]
       );
       if (!result.rows.length) return res.status(404).json({ error: "Coupon not found." });
+      await logAdminActivity(req, "Coupon status changed", result.rows[0].code + " · " + (req.body.active ? "Active" : "Inactive"));
       res.json({ coupon: result.rows[0] });
     } catch (error) {
       console.error("Coupon update error:", error.message);
@@ -939,6 +955,7 @@ module.exports = function createFeatureRouter({ pool, requireCustomer, requireAd
         "UPDATE store_announcements SET message = $1, link_url = $2, active = $3 WHERE id = $4 RETURNING id, message, link_url, active, created_at",
         [message, linkUrl, active, id]
       );
+      await logAdminActivity(req, "Announcement updated", message + " · " + (active ? "Published" : "Hidden"));
       res.json({ announcement: result.rows[0] });
     } catch (error) {
       console.error("Announcement update error:", error.message);
@@ -972,6 +989,26 @@ module.exports = function createFeatureRouter({ pool, requireCustomer, requireAd
     } catch (error) {
       console.error("Gift card create error:", error.message);
       res.status(500).json({ error: "Unable to create test gift card." });
+    }
+  });
+
+  // Admin activity history
+  router.get("/admin/activity", requireAdmin, async (req, res) => {
+    try {
+      const search = clean(req.query.search, 100);
+      const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 100));
+      const result = await pool.query(
+        `SELECT id, actor, action, details, created_at
+         FROM admin_activity_log
+         WHERE ($1 = '' OR action ILIKE $2 OR details ILIKE $2)
+         ORDER BY created_at DESC
+         LIMIT $3`,
+        [search, "%" + search + "%", limit]
+      );
+      res.json({ activities: result.rows });
+    } catch (error) {
+      console.error("Admin activity load error:", error.message);
+      res.status(500).json({ error: "Unable to load activity history." });
     }
   });
 

@@ -1458,11 +1458,13 @@
                   reply: reply.value
                 })
               });
-              message.textContent = "Ticket " + (ticket.ticket_reference || ticket.id) + " updated. " +
+              const replyWasEntered = Boolean(reply.value.trim());
+              const statusMessage = "Ticket " + (ticket.ticket_reference || ticket.id) + " updated. " +
                 (result.emailSent ? "A reply notification email was sent." :
-                  (reply.value.trim() ? "The reply is saved, but the notification email was not sent. Check Resend settings and Render logs." :
+                  (replyWasEntered ? "The reply is saved, but the notification email was not sent. Check Resend settings and Render logs." :
                     "The customer can see the update in their account."));
               await loadAdminSupport();
+              document.getElementById("adminSupportMessage").textContent = statusMessage;
             } catch (error) {
               message.textContent = "Could not update ticket: " + error.message;
               save.disabled = false;

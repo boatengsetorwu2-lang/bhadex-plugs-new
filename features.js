@@ -490,22 +490,35 @@ module.exports = function createFeatureRouter({ pool, requireCustomer, requireAd
       );
 
       let emailSent = false;
+      let emailMessage = "";
       const previousReply = String(existing.rows[0].admin_reply || "").trim();
-      if (reply && reply !== previousReply && validEmail(existing.rows[0].customer_email)) {
+      const recipientEmail = String(existing.rows[0].customer_email || "").trim();
+
+      if (!reply) {
+        emailMessage = "No reply text was provided, so no email was attempted.";
+      } else if (reply === previousReply) {
+        emailMessage = "The reply is unchanged from the previously saved reply, so no new email was sent. Edit the reply slightly to retry.";
+      } else if (!validEmail(recipientEmail)) {
+        emailMessage = "The ticket's customer email address is missing or invalid.";
+      } else {
         try {
-          await sendSupportReplyEmail({
-            to: existing.rows[0].customer_email,
+          const emailResult = await sendSupportReplyEmail({
+            to: recipientEmail,
             ticketReference: "BHD-SUP-" + String(ticketId).padStart(6, "0"),
             subject: existing.rows[0].subject,
             reply,
             status
           });
           emailSent = true;
+          emailMessage = "Resend accepted the notification request. Check the recipient inbox and spam folder.";
+          console.log("Support reply email accepted by Resend for ticket:", ticketId, emailResult?.data?.id || "ID unavailable");
         } catch (emailError) {
+          const providerMessage = emailError.response?.data?.message || emailError.response?.data?.error || emailError.message || "Unknown email error";
+          emailMessage = "Resend could not send the notification: " + String(providerMessage).slice(0, 500);
           console.error("Support reply email error:", emailError.response?.data || emailError.message);
         }
       }
-      res.json({ success: true, emailSent });
+      res.json({ success: true, emailSent, emailMessage });
     } catch (error) {
       console.error("Support update error:", error.message);
       res.status(500).json({ error: "Unable to update ticket." });

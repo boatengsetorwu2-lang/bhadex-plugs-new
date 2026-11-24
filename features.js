@@ -192,7 +192,7 @@ module.exports = function createFeatureRouter({ pool, requireCustomer, requireAd
       const [summary, history, reservations] = await Promise.all([
         pool.query(
           `SELECT COALESCE(SUM(points), 0)::int AS points,
-                  COUNT(*) FILTER (WHERE points > 0)::int AS earned_orders
+                  COUNT(*) FILTER (WHERE points > 0 AND order_reference NOT LIKE 'REF-%')::int AS earned_orders
            FROM loyalty_ledger WHERE customer_id = $1`,
           [customer.id]
         ),

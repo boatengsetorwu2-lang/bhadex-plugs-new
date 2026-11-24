@@ -297,11 +297,15 @@ module.exports = function createFeatureRouter({ pool, requireCustomer, requireAd
       const subject = clean(req.body?.subject, 120);
       const message = clean(req.body?.message, 3000);
       const reference = clean(req.body?.reference, 100);
+      const priority = clean(req.body?.priority, 10).toUpperCase() || "NORMAL";
       if (subject.length < 3 || message.length < 10) return res.status(400).json({ error: "Enter a subject and a message of at least 10 characters." });
+      if (!["LOW", "NORMAL", "HIGH"].includes(priority)) return res.status(400).json({ error: "Choose a valid ticket priority." });
       const result = await pool.query(
-        `INSERT INTO support_tickets(customer_id, customer_email, subject, message, order_reference)
-         VALUES($1,$2,$3,$4,$5) RETURNING id, status, created_at`,
-        [customer.id, customer.email, subject, message, reference || null]
+        `INSERT INTO support_tickets(customer_id, customer_email, subject, message, order_reference, priority)
+         VALUES($1,$2,$3,$4,$5,$6)
+         RETURNING id, 'BHD-SUP-' || LPAD(id::text, 6, '0') AS ticket_reference,
+                   status, priority, created_at`,
+        [customer.id, customer.email, subject, message, reference || null, priority]
       );
       res.status(201).json({ success: true, ticket: result.rows[0] });
     } catch (error) {
@@ -314,7 +318,9 @@ module.exports = function createFeatureRouter({ pool, requireCustomer, requireAd
     try {
       const customer = await customerEmail(req);
       const result = await pool.query(
-        `SELECT id, subject, message, status, admin_reply, created_at, updated_at
+        `SELECT id, 'BHD-SUP-' || LPAD(id::text, 6, '0') AS ticket_reference,
+                subject, message, order_reference, status, priority, admin_reply,
+                created_at, updated_at
          FROM support_tickets WHERE customer_id = $1 ORDER BY created_at DESC LIMIT 50`,
         [customer.id]
       );
@@ -416,7 +422,8 @@ module.exports = function createFeatureRouter({ pool, requireCustomer, requireAd
 
   router.get("/admin/support", requireAdmin, async (req, res) => {
     try {
-      const result = await pool.query("SELECT * FROM support_tickets ORDER BY created_at DESC LIMIT 300");
+      const result = await pool.query(`SELECT *, 'BHD-SUP-' || LPAD(id::text, 6, '0') AS ticket_reference
+        FROM support_tickets ORDER BY created_at DESC LIMIT 300`);
       res.json({ tickets: result.rows });
     } catch (error) {
       console.error("Admin support error:", error.message);
@@ -427,11 +434,13 @@ module.exports = function createFeatureRouter({ pool, requireCustomer, requireAd
   router.patch("/admin/support/:id", requireAdmin, async (req, res) => {
     try {
       const status = clean(req.body?.status, 20).toUpperCase();
+      const priority = clean(req.body?.priority, 10).toUpperCase() || "NORMAL";
       const reply = clean(req.body?.reply, 3000);
       if (!["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"].includes(status)) return res.status(400).json({ error: "Invalid ticket status." });
+      if (!["LOW", "NORMAL", "HIGH"].includes(priority)) return res.status(400).json({ error: "Invalid ticket priority." });
       const result = await pool.query(
-        "UPDATE support_tickets SET status=$1, admin_reply=$2, updated_at=NOW() WHERE id=$3 RETURNING id",
-        [status, reply || null, Number(req.params.id)]
+        "UPDATE support_tickets SET status=$1, priority=$2, admin_reply=$3, updated_at=NOW() WHERE id=$4 RETURNING id",
+        [status, priority, reply || null, Number(req.params.id)]
       );
       if (!result.rows.length) return res.status(404).json({ error: "Ticket not found." });
       res.json({ success: true });

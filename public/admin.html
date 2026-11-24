@@ -596,6 +596,22 @@
         <div id="analyticsDaily" class="inventory-list"></div>
       </section>
 
+      <!-- ADMIN ACTIVITY LOG -->
+      <section class="panel" id="adminActivityPanel">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+          <div>
+            <h2>Admin Activity Log</h2>
+            <p class="muted">A history of important changes made in this dashboard.</p>
+          </div>
+          <button type="button" class="secondary" id="refreshActivityBtn">Refresh Activity</button>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0;">
+          <input id="activitySearch" type="search" placeholder="Search actions or details..." style="flex:1;min-width:220px;">
+        </div>
+        <p id="activityMessage" class="message" aria-live="polite">Activity will load after login.</p>
+        <div id="activityList" class="inventory-list"></div>
+      </section>
+
       <!-- PRODUCT INVENTORY -->
       <section class="panel">
         <h2>Product Inventory</h2>
@@ -1184,6 +1200,7 @@
 
         await loadOrders();
         await loadBusinessAnalytics();
+        await loadAdminActivity();
         await loadCustomers();
         await loadInventory();
         await loadAdminReferrals();
@@ -2264,6 +2281,52 @@
         if (error.message !== "Session expired") message.textContent = "Could not load reviews: " + error.message;
       }
     }
+
+    // ADMIN ACTIVITY LOG
+    async function loadAdminActivity() {
+      const message = document.getElementById("activityMessage");
+      const list = document.getElementById("activityList");
+      message.textContent = "Loading activity...";
+      list.replaceChildren();
+      try {
+        const search = document.getElementById("activitySearch").value.trim();
+        const params = new URLSearchParams();
+        if (search) params.set("search", search);
+        params.set("limit", "100");
+        const data = await request("/api/features/admin/activity?" + params.toString());
+        const items = data.activities || [];
+        if (!items.length) {
+          message.textContent = search ? "No matching activity found." : "No activity has been recorded yet.";
+          return;
+        }
+        message.textContent = items.length + " recent activity record(s).";
+        items.forEach(item => {
+          const row = document.createElement("div");
+          row.className = "inventory-row";
+          const info = document.createElement("div");
+          const action = document.createElement("strong");
+          action.textContent = item.action || "Admin activity";
+          const details = document.createElement("div");
+          details.className = "inventory-state";
+          details.textContent = item.details || "";
+          const meta = document.createElement("span");
+          meta.className = "inventory-state";
+          meta.textContent = (item.actor || "Admin") + " · " + formatDate(item.created_at);
+          info.append(action, details, meta);
+          row.appendChild(info);
+          list.appendChild(row);
+        });
+      } catch (error) {
+        if (error.message !== "Session expired") message.textContent = "Could not load activity: " + error.message;
+      }
+    }
+
+    document.getElementById("refreshActivityBtn").addEventListener("click", loadAdminActivity);
+    let activitySearchTimer;
+    document.getElementById("activitySearch").addEventListener("input", () => {
+      clearTimeout(activitySearchTimer);
+      activitySearchTimer = setTimeout(loadAdminActivity, 300);
+    });
 
     // BUSINESS ANALYTICS
     async function loadBusinessAnalytics() {

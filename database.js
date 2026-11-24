@@ -193,6 +193,22 @@ async function initializeDatabase() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
+    CREATE TABLE IF NOT EXISTS customer_referrals (
+      id BIGSERIAL PRIMARY KEY,
+      referrer_customer_id BIGINT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+      referred_customer_id BIGINT NOT NULL UNIQUE REFERENCES customers(id) ON DELETE CASCADE,
+      referral_code VARCHAR(30) NOT NULL,
+      status VARCHAR(20) NOT NULL DEFAULT 'PENDING'
+        CHECK (status IN ('PENDING','REWARDED')),
+      qualifying_order_reference VARCHAR(100) UNIQUE,
+      points_awarded INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      rewarded_at TIMESTAMPTZ,
+      CHECK (referrer_customer_id <> referred_customer_id)
+    );
+    CREATE INDEX IF NOT EXISTS customer_referrals_referrer_created_idx
+      ON customer_referrals(referrer_customer_id, created_at DESC);
+
     CREATE TABLE IF NOT EXISTS store_coupons (
       id BIGSERIAL PRIMARY KEY,
       code VARCHAR(30) UNIQUE NOT NULL,

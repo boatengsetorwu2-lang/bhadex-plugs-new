@@ -358,6 +358,7 @@ body {
     <a href="#overview">Overview</a>
     <a href="#track">Track Order</a>
     <a href="#orders">My Orders</a>
+    <a href="#rewards">Loyalty Rewards</a>
     <a href="#profile">My Profile</a>
     <a href="#security">Security</a>
     <a href="#support">Support</a>
@@ -388,6 +389,35 @@ body {
       </div>
 
     </div>
+  </section>
+
+  <!-- LOYALTY REWARDS -->
+  <section class="dashboard-card" id="rewards">
+    <h2>Loyalty Rewards</h2>
+    <p class="muted">Earn points when your paid orders are marked as delivered.</p>
+
+    <div class="summary-grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr));">
+      <div class="summary-card">
+        <p>Available Points</p>
+        <h2 id="loyaltyPoints">—</h2>
+      </div>
+      <div class="summary-card">
+        <p>Orders That Earned Points</p>
+        <h2 id="loyaltyEarnedOrders">—</h2>
+      </div>
+    </div>
+
+    <div class="dashboard-card" style="margin:18px 0 0;padding:20px;background:#10101c;">
+      <h2 style="font-size:17px;">How to earn points</h2>
+      <p class="muted">You earn 1 point for every GHS 1 spent on a paid order after it is marked as delivered. Pending and processing orders do not earn points yet.</p>
+      <p class="muted">Your points balance and earning history are shown below. Redeeming points for discounts is not available yet.</p>
+    </div>
+
+    <h2 style="margin-top:24px;">Points History</h2>
+    <div id="loyaltyHistory">
+      <p class="muted">Loading your points history...</p>
+    </div>
+    <div id="loyaltyMessage" class="message" role="status"></div>
   </section>
 
   <!-- TRACK ORDER -->
@@ -572,6 +602,7 @@ async function loadAccount() {
     profileEmail.value = customer.email || "";
 
     await loadOrders();
+    await loadRewards();
 
   } catch (error) {
     showMessage("message", error.message);
@@ -589,6 +620,56 @@ async function loadOrders() {
 
   } catch (error) {
     ordersList.textContent = error.message;
+  }
+}
+
+// LOAD CUSTOMER LOYALTY REWARDS
+async function loadRewards() {
+  const pointsElement = document.getElementById("loyaltyPoints");
+  const ordersElement = document.getElementById("loyaltyEarnedOrders");
+  const historyElement = document.getElementById("loyaltyHistory");
+
+  try {
+    const result = await apiRequest("/api/features/customer/rewards");
+    pointsElement.textContent = Number(result.points || 0).toLocaleString();
+    ordersElement.textContent = Number(result.earnedOrders || 0).toLocaleString();
+    historyElement.replaceChildren();
+
+    const history = Array.isArray(result.history) ? result.history : [];
+    if (!history.length) {
+      const empty = document.createElement("p");
+      empty.className = "muted";
+      empty.textContent = "You have not earned any points yet. Points are added after an order is marked as delivered.";
+      historyElement.appendChild(empty);
+      return;
+    }
+
+    history.forEach(entry => {
+      const row = document.createElement("div");
+      row.className = "order";
+
+      const title = document.createElement("p");
+      const strong = document.createElement("strong");
+      strong.textContent = "+" + Number(entry.points || 0).toLocaleString() + " points";
+      title.appendChild(strong);
+
+      const reference = document.createElement("p");
+      reference.className = "reference";
+      reference.textContent = "Order reference: " + (entry.order_reference || "Not available");
+
+      const date = document.createElement("p");
+      date.className = "muted";
+      date.textContent = entry.created_at
+        ? "Earned: " + new Date(entry.created_at).toLocaleString()
+        : "Earned date unavailable";
+
+      row.append(title, reference, date);
+      historyElement.appendChild(row);
+    });
+  } catch (error) {
+    pointsElement.textContent = "—";
+    ordersElement.textContent = "—";
+    historyElement.textContent = error.message || "Unable to load your points history.";
   }
 }
 

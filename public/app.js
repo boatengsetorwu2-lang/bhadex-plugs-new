@@ -889,13 +889,14 @@ function createCheckoutModal() {
         <form id="checkoutForm">
           <div class="checkout-field">
             <label for="checkoutEmail">Email Address</label>
-            <input
-              type="email"
-              id="checkoutEmail"
-              placeholder="Enter your email address"
-              autocomplete="email"
-              required
-            >
+            <input type="email" id="checkoutEmail" placeholder="Enter your email address" autocomplete="email" required>
+          </div>
+
+          <div class="checkout-field">
+            <label for="checkoutLoyaltyPoints">Redeem loyalty points (optional)</label>
+            <input type="number" id="checkoutLoyaltyPoints" min="0" step="100" value="0" placeholder="Multiples of 100" disabled>
+            <small id="checkoutLoyaltyInfo" style="display:block;color:#aaa;margin-top:7px;line-height:1.5;">Log in to your BHADEX PLUGS account to use points. 100 points = GH₵1. Test-mode only.</small>
+            <small id="checkoutLoyaltyPreview" style="display:block;color:#8ee6a0;margin-top:6px;"></small>
           </div>
 
           <p id="checkoutError" class="checkout-error" role="alert"></p>
@@ -926,8 +927,40 @@ function createCheckoutModal() {
 
   document.getElementById("checkoutForm")
     .addEventListener("submit", submitCheckout);
+
+  document.getElementById("checkoutLoyaltyPoints")
+    .addEventListener("input", updateLoyaltyPreview);
 }
 
+async function loadCheckoutLoyalty() {
+  const input = document.getElementById("checkoutLoyaltyPoints");
+  const info = document.getElementById("checkoutLoyaltyInfo");
+  if (!input || !info) return;
+  try {
+    const response = await fetch("/api/features/customer/rewards");
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Log in to redeem points.");
+    input.disabled = false;
+    input.max = String(Math.floor(Number(data.points || 0) / 100) * 100);
+    info.textContent = "Available: " + Number(data.points || 0).toLocaleString() + " points. 100 points = GH₵1. Points are deducted only after a successful test payment.";
+    updateLoyaltyPreview();
+  } catch {
+    input.disabled = true;
+    info.textContent = "Log in to your verified customer account and use your account email to redeem points. Test mode only.";
+  }
+}
+
+function updateLoyaltyPreview() {
+  const input = document.getElementById("checkoutLoyaltyPoints");
+  const preview = document.getElementById("checkoutLoyaltyPreview");
+  if (!input || !preview || !checkoutProduct || checkoutPackageIndex === null) return;
+  const points = Number(input.value || 0);
+  const price = checkoutProduct.prices[checkoutPackageIndex];
+  if (!Number.isInteger(points) || points < 0 || points % 100 !== 0) { preview.textContent = "Use point amounts in multiples of 100."; return; }
+  const discount = points / 100;
+  if (discount > price - 1) { preview.textContent = "Keep at least GH₵1.00 payable."; return; }
+  preview.textContent = points ? "Estimated points discount: GH₵" + discount.toFixed(2) + " | Estimated total: GH₵" + (price-discount).toFixed(2) : "No points discount applied.";
+}
 // CHECKOUT STATE
 let checkoutProduct = null;
 let checkoutPackageIndex = null;
@@ -959,8 +992,20 @@ function startCheckout(productName, packageIndex) {
     `GH₵${product.prices[packageIndex]}`;
 
   document.getElementById("checkoutEmail").value = "";
+  document.getElementById("checkoutLoyaltyPoints").value = "0";
+  document.getElementById("checkoutLoyaltyPoints").disabled = true;
+  document.getElementById("checkoutLoyaltyInfo").textContent = "Checking your account points...";
+  document.getElementById("checkoutLoyaltyPreview").textContent = "";
+  loadCheckoutLoyalty();
   document.getElementById("checkoutError").textContent = "";
   document.getElementById("checkoutError").classList.remove("visible");
+
+  const loyaltyInput = document.getElementById("checkoutLoyaltyPoints");
+  const loyaltyPoints = Number(loyaltyInput?.value || 0);
+  if (!Number.isInteger(loyaltyPoints) || loyaltyPoints < 0 || (loyaltyPoints > 0 && (loyaltyPoints < 100 || loyaltyPoints % 100 !== 0))) {
+    showCheckoutError("Enter points in multiples of 100.");
+    return;
+  }
 
   const submitButton = document.getElementById("checkoutSubmit");
   submitButton.disabled = false;
@@ -1027,7 +1072,8 @@ async function submitCheckout(event) {
       body: JSON.stringify({
         product: checkoutProduct.name,
         packageIndex: checkoutPackageIndex,
-        email: email
+        email: email,
+        loyaltyPoints: loyaltyPoints
       })
     });
 

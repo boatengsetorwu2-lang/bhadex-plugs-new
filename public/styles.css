@@ -563,7 +563,7 @@ footer {
 }
 
 /* =========================================
-   DURATION SELECTOR
+   HIGH-VISIBILITY DURATION SELECTOR
 ========================================= */
 
 .product-purchase {
@@ -571,38 +571,74 @@ footer {
   flex-direction: column;
   gap: 10px;
   margin-top: auto;
-  padding-top: 15px;
+  padding: 17px 0 0;
 }
 
 .product-purchase label {
-  color: #ddd;
-  font-size: 12px;
-  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: .7px;
+  text-transform: uppercase;
+}
+
+.product-purchase label::before {
+  content: "✦";
+  color: var(--red);
+  font-size: 15px;
 }
 
 .package-select {
+  display: block;
   width: 100%;
-  min-height: 48px;
-  padding: 12px 14px;
-  border: 1px solid rgba(255,255,255,.15);
-  border-radius: 11px;
-  background: #191919;
-  color: white;
-  font-size: 13px;
+  min-height: 56px;
+  padding: 14px 16px;
+  border: 2px solid var(--red);
+  border-radius: 12px;
+  background: linear-gradient(110deg, #241014, #191919 70%);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: .2px;
   outline: none;
   cursor: pointer;
-  transition: .2s;
+  color-scheme: dark;
+  box-shadow: 0 0 0 1px rgba(255,38,61,.12), 0 0 18px rgba(255,38,61,.2);
+  transition: border-color .2s, background .2s, box-shadow .2s, transform .2s;
 }
 
-.package-select:hover,
-.package-select:focus {
-  border-color: var(--red);
-  background: #202020;
+.package-select:hover {
+  border-color: #ff7180;
+  background: linear-gradient(110deg, #35131a, #202020 70%);
+  box-shadow: 0 0 0 2px rgba(255,38,61,.16), 0 0 23px rgba(255,38,61,.34);
+}
+
+.package-select:focus,
+.package-select:focus-visible {
+  border-color: #fff;
+  box-shadow: 0 0 0 3px rgba(255,38,61,.28), 0 0 24px rgba(255,38,61,.42);
 }
 
 .package-select option {
   background: #171717;
-  color: white;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+@media (max-width: 560px) {
+  .package-select {
+    min-height: 58px;
+    padding: 15px;
+    font-size: 16px;
+  }
+
+  .product-purchase label {
+    font-size: 14px;
+  }
 }
 
 /* =========================================

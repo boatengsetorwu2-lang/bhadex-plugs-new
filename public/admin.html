@@ -469,6 +469,18 @@
     .inventory-state.unavailable { color: #ff8585; }
     .inventory-row button { min-width: 145px; }
     @media(max-width: 520px) { .inventory-row { align-items: flex-start; flex-direction: column; } .inventory-row button { width: 100%; } }
+
+    /* ADMIN DASHBOARD NAVIGATION */
+    .admin-nav { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:10px; margin:18px 0 22px; }
+    .admin-nav-button { display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; min-height:58px; padding:14px 16px; text-align:left; background:#151515; color:#fff; border:1px solid var(--border); border-radius:10px; }
+    .admin-nav-button:hover, .admin-nav-button.active { border-color:var(--red); background:#211114; }
+    .admin-nav-button small { display:block; color:var(--muted); font-weight:normal; margin-top:4px; }
+    .admin-nav-heading { grid-column:1/-1; color:#ff7180; font-size:11px; letter-spacing:1.2px; text-transform:uppercase; margin:9px 0 0; }
+    .admin-current-section { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin:4px 0 14px; }
+    .admin-current-section h2 { margin:0; }
+    @media(max-width:520px) { .admin-nav { grid-template-columns:1fr 1fr; gap:8px; } .admin-nav-button { min-height:54px; padding:11px; font-size:12px; } }
+    @media(max-width:360px) { .admin-nav { grid-template-columns:1fr; } }
+
   </style>
 </head>
 
@@ -879,9 +891,110 @@
     let notificationCount = 0;
     let soundEnabled = false;
 
+    let adminNavigationReady = false;
+
+    function initializeAdminNavigation() {
+      if (adminNavigationReady) return;
+
+      const header = dashboard.querySelector(":scope > header");
+      const notificationPanel = dashboard.querySelector(":scope > .notification-panel");
+      const statsPanel = dashboard.querySelector(":scope > .stats");
+      const panels = Array.from(dashboard.querySelectorAll(":scope > .panel"))
+        .filter(panel => panel !== notificationPanel && !panel.classList.contains("login-box"));
+
+      const nav = document.createElement("nav");
+      nav.className = "admin-nav";
+      nav.setAttribute("aria-label", "Admin dashboard sections");
+
+      const current = document.createElement("div");
+      current.className = "admin-current-section";
+      current.innerHTML = '<h2 id="adminCurrentTitle">Overview</h2><span class="muted">Choose a section to view its tools.</span>';
+
+      const content = document.createElement("div");
+      content.id = "adminSectionContent";
+
+      const overviewButton = document.createElement("button");
+      overviewButton.type = "button";
+      overviewButton.className = "admin-nav-button active";
+      overviewButton.innerHTML = '<span>Overview<small>Notifications and order totals</small></span><span aria-hidden="true">›</span>';
+      nav.appendChild(overviewButton);
+
+      const categories = [
+        { name: "Orders & Customers", match: /order|customer|abandoned/i },
+        { name: "Store Management", match: /product|inventory|coupon|gift card|refund/i },
+        { name: "Customer Service", match: /chat|support|review|ticket/i },
+        { name: "Marketing", match: /announcement|newsletter|referral/i },
+        { name: "Reports & Administration", match: /analytic|activity|security/i }
+      ];
+
+      const groups = new Map(categories.map(category => [category.name, []]));
+      const other = [];
+
+      panels.forEach((panel, index) => {
+        const heading = panel.querySelector("h2");
+        const title = heading ? heading.textContent.trim() : "Admin Tool " + (index + 1);
+        let category = categories.find(item => item.match.test(title));
+        (category ? groups.get(category.name) : other).push({ panel, title });
+        panel.classList.add("hidden");
+        content.appendChild(panel);
+      });
+
+      function showSection(title, panel, button) {
+        if (notificationPanel) notificationPanel.classList.toggle("hidden", Boolean(panel));
+        if (statsPanel) statsPanel.classList.toggle("hidden", Boolean(panel));
+        panels.forEach(item => item.classList.toggle("hidden", item !== panel));
+        nav.querySelectorAll(".admin-nav-button").forEach(item => item.classList.toggle("active", item === button));
+        document.getElementById("adminCurrentTitle").textContent = title;
+      }
+
+      overviewButton.addEventListener("click", () => showSection("Overview", null, overviewButton));
+
+      categories.forEach(category => {
+        const items = groups.get(category.name);
+        if (!items.length) return;
+        const label = document.createElement("div");
+        label.className = "admin-nav-heading";
+        label.textContent = category.name;
+        nav.appendChild(label);
+
+        items.forEach(item => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "admin-nav-button";
+          button.innerHTML = '<span></span><span aria-hidden="true">›</span>';
+          button.querySelector("span").append(document.createTextNode(item.title));
+          const hint = document.createElement("small");
+          hint.textContent = "Open section";
+          button.querySelector("span").appendChild(hint);
+          button.addEventListener("click", () => showSection(item.title, item.panel, button));
+          nav.appendChild(button);
+        });
+      });
+
+      other.forEach(item => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "admin-nav-button";
+        button.innerHTML = '<span></span><span aria-hidden="true">›</span>';
+        button.querySelector("span").append(document.createTextNode(item.title));
+        const hint = document.createElement("small");
+        hint.textContent = "Open section";
+        button.querySelector("span").appendChild(hint);
+        button.addEventListener("click", () => showSection(item.title, item.panel, button));
+        nav.appendChild(button);
+      });
+
+      header.insertAdjacentElement("afterend", nav);
+      nav.insertAdjacentElement("afterend", current);
+      current.insertAdjacentElement("afterend", content);
+      showSection("Overview", null, overviewButton);
+      adminNavigationReady = true;
+    }
+
     function showDashboard() {
       loginSection.classList.add("hidden");
       dashboard.classList.remove("hidden");
+      initializeAdminNavigation();
     }
 
     function showLogin(message = "") {

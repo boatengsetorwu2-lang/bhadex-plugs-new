@@ -639,6 +639,22 @@
         <div id="giftCardsList" class="inventory-list"></div>
       </section>
 
+      <!-- ANNOUNCEMENTS MANAGEMENT -->
+      <section class="panel">
+        <h2>Website Announcements</h2>
+        <p class="muted">Publish a short message at the top of the homepage and marketplace. Only one announcement can be active at a time. Maximum 240 characters.</p>
+        <form id="announcementForm" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin:16px 0;">
+          <input id="announcementEditId" type="hidden">
+          <input id="announcementMessageInput" type="text" maxlength="240" placeholder="Announcement message" required style="grid-column:1/-1;">
+          <input id="announcementLinkInput" type="url" maxlength="500" placeholder="Optional link (https://...)">
+          <label style="display:flex;align-items:center;gap:9px;color:#ddd;font-size:13px;"><input id="announcementActiveInput" type="checkbox" checked style="width:auto;"> Publish immediately</label>
+          <button class="primary" id="announcementSubmitBtn" type="submit">Publish Announcement</button>
+          <button class="secondary hidden" id="announcementCancelBtn" type="button">Cancel Edit</button>
+        </form>
+        <p id="announcementsMessage" class="message" aria-live="polite">Announcements will load after login.</p>
+        <div id="announcementsList" class="inventory-list"></div>
+      </section>
+
       <!-- PRODUCT REVIEW MODERATION -->
       <section class="panel">
         <h2>Product Reviews</h2>
@@ -1136,6 +1152,7 @@
         await loadAbandonedCheckouts();
         await loadCoupons();
         await loadGiftCards();
+        await loadAnnouncements();
         await loadAdminReviews();
         await loadAdminSupport();
         await loadAdminChat();
@@ -1940,6 +1957,122 @@
         if (error.message !== "Session expired") message.textContent = "Could not load support tickets: " + error.message;
       }
     }
+
+
+    // WEBSITE ANNOUNCEMENTS
+    function resetAnnouncementForm() {
+      document.getElementById("announcementForm").reset();
+      document.getElementById("announcementEditId").value = "";
+      document.getElementById("announcementActiveInput").checked = true;
+      document.getElementById("announcementSubmitBtn").textContent = "Publish Announcement";
+      document.getElementById("announcementCancelBtn").classList.add("hidden");
+    }
+
+    async function loadAnnouncements() {
+      const message = document.getElementById("announcementsMessage");
+      const list = document.getElementById("announcementsList");
+      list.replaceChildren();
+      message.textContent = "Loading announcements...";
+      try {
+        const data = await request("/api/features/admin/announcements");
+        const items = data.announcements || [];
+        if (!items.length) {
+          message.textContent = "No announcements created yet.";
+          return;
+        }
+        message.textContent = items.length + " announcement(s).";
+        items.forEach(item => {
+          const row = document.createElement("div");
+          row.className = "inventory-row";
+          const info = document.createElement("div");
+          const title = document.createElement("div");
+          title.className = "inventory-product";
+          title.textContent = item.message;
+          const detail = document.createElement("span");
+          detail.className = "inventory-state";
+          detail.textContent = (item.link_url ? "Includes a link · " : "No link · ") + formatDate(item.created_at);
+          const status = document.createElement("span");
+          status.className = "inventory-state " + (item.active ? "available" : "unavailable");
+          status.textContent = item.active ? "Published" : "Hidden";
+          info.append(title, detail, status);
+
+          const actions = document.createElement("div");
+          actions.style.display = "flex";
+          actions.style.flexWrap = "wrap";
+          actions.style.gap = "8px";
+          const edit = document.createElement("button");
+          edit.type = "button";
+          edit.className = "secondary";
+          edit.textContent = "Edit";
+          edit.addEventListener("click", () => {
+            document.getElementById("announcementEditId").value = item.id;
+            document.getElementById("announcementMessageInput").value = item.message;
+            document.getElementById("announcementLinkInput").value = item.link_url || "";
+            document.getElementById("announcementActiveInput").checked = Boolean(item.active);
+            document.getElementById("announcementSubmitBtn").textContent = "Save Changes";
+            document.getElementById("announcementCancelBtn").classList.remove("hidden");
+            document.getElementById("announcementMessageInput").focus();
+            document.getElementById("announcementForm").scrollIntoView({ behavior: "smooth", block: "center" });
+          });
+          const toggle = document.createElement("button");
+          toggle.type = "button";
+          toggle.className = item.active ? "secondary" : "primary";
+          toggle.textContent = item.active ? "Hide" : "Publish";
+          toggle.addEventListener("click", async () => {
+            toggle.disabled = true;
+            try {
+              await request("/api/features/admin/announcements/" + encodeURIComponent(item.id), {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ active: !item.active })
+              });
+              await loadAnnouncements();
+            } catch (error) {
+              message.textContent = "Could not update announcement: " + error.message;
+              toggle.disabled = false;
+            }
+          });
+          actions.append(edit, toggle);
+          row.append(info, actions);
+          list.appendChild(row);
+        });
+      } catch (error) {
+        if (error.message !== "Session expired") message.textContent = "Could not load announcements: " + error.message;
+      }
+    }
+
+    document.getElementById("announcementCancelBtn").addEventListener("click", resetAnnouncementForm);
+    document.getElementById("announcementForm").addEventListener("submit", async event => {
+      event.preventDefault();
+      const id = document.getElementById("announcementEditId").value;
+      const button = document.getElementById("announcementSubmitBtn");
+      const message = document.getElementById("announcementsMessage");
+      const payload = {
+        message: document.getElementById("announcementMessageInput").value.trim(),
+        linkUrl: document.getElementById("announcementLinkInput").value.trim(),
+        active: document.getElementById("announcementActiveInput").checked
+      };
+      button.disabled = true;
+      button.textContent = id ? "Saving..." : "Publishing...";
+      try {
+        await request(id
+          ? "/api/features/admin/announcements/" + encodeURIComponent(id)
+          : "/api/features/admin/announcements", {
+          method: id ? "PATCH" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        resetAnnouncementForm();
+        message.textContent = id ? "Announcement updated." : "Announcement created.";
+        await loadAnnouncements();
+      } catch (error) {
+        message.textContent = "Could not save announcement: " + error.message;
+      } finally {
+        button.disabled = false;
+        if (!document.getElementById("announcementEditId").value) button.textContent = "Publish Announcement";
+        else button.textContent = "Save Changes";
+      }
+    });
 
     // PRODUCT REVIEW MODERATION
     async function loadAdminReviews() {

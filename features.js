@@ -236,6 +236,28 @@ module.exports = function createFeatureRouter({ pool, requireCustomer, requireAd
     }
   });
 
+  router.get("/customer/reviews", requireCustomer, async (req, res) => {
+    try {
+      const customer = await customerEmail(req);
+      if (!customer) return res.status(404).json({ error: "Customer account not found." });
+      const result = await pool.query(
+        `SELECT o.reference, o.product, o.delivered_at
+         FROM orders o
+         LEFT JOIN product_reviews r ON r.order_reference = o.reference
+         WHERE LOWER(o.customer_email) = LOWER($1)
+           AND o.status = 'PAID'
+           AND o.fulfillment_status = 'DELIVERED'
+           AND r.id IS NULL
+         ORDER BY o.delivered_at DESC NULLS LAST`,
+        [customer.email]
+      );
+      res.json({ eligibleOrders: result.rows });
+    } catch (error) {
+      console.error("Customer review options error:", error.message);
+      res.status(500).json({ error: "Unable to load eligible orders for reviews." });
+    }
+  });
+
   router.post("/customer/reviews", requireCustomer, async (req, res) => {
     try {
       const customer = await customerEmail(req);
@@ -252,13 +274,17 @@ module.exports = function createFeatureRouter({ pool, requireCustomer, requireAd
         [reference, customer.email]
       );
       if (!order.rows.length) return res.status(400).json({ error: "Reviews are available after an order is delivered." });
-      await pool.query(
+      const inserted = await pool.query(
         `INSERT INTO product_reviews(customer_id, customer_email, order_reference, product, rating, review)
          VALUES($1,$2,$3,$4,$5,$6)
-         ON CONFLICT(order_reference) DO NOTHING`,
+         ON CONFLICT(order_reference) DO NOTHING
+         RETURNING id`,
         [customer.id, customer.email, reference, order.rows[0].product, rating, review]
       );
-      res.json({ success: true, message: "Your review has been submitted for approval." });
+      if (!inserted.rowCount) {
+        return res.status(409).json({ error: "A review has already been submitted for this order." });
+      }
+      res.status(201).json({ success: true, message: "Your review has been submitted for approval." });
     } catch (error) {
       console.error("Review submission error:", error.message);
       res.status(500).json({ error: "Unable to submit your review." });

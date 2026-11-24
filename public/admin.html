@@ -581,6 +581,25 @@
         <div id="inventoryList" class="inventory-list"></div>
       </section>
 
+      <!-- LIVE CUSTOMER CHAT -->
+      <section class="panel">
+        <h2>Live Customer Chat</h2>
+        <p class="muted">View customer conversations and reply directly. New customer messages are marked unread.</p>
+        <p id="adminChatMessage" class="message" aria-live="polite">Chat conversations will load after login.</p>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;">
+          <div id="adminChatConversations" style="display:grid;gap:8px;align-content:start;"></div>
+          <div style="min-width:0;">
+            <div id="adminChatThread" style="display:grid;gap:10px;max-height:380px;overflow:auto;padding:10px;border:1px solid var(--border);border-radius:8px;">
+              <p class="muted">Select a conversation to view messages.</p>
+            </div>
+            <form id="adminChatForm" style="display:grid;gap:9px;margin-top:10px;">
+              <textarea id="adminChatInput" rows="3" maxlength="2000" placeholder="Write a reply..." disabled></textarea>
+              <button class="primary" id="adminChatSend" type="submit" disabled>Send Reply</button>
+            </form>
+          </div>
+        </div>
+      </section>
+
       <!-- SUPPORT TICKET MANAGEMENT -->
       <section class="panel">
         <h2>Customer Support Tickets</h2>
@@ -1102,6 +1121,7 @@
         await loadCoupons();
         await loadAdminReviews();
         await loadAdminSupport();
+        await loadAdminChat();
         startOrderPolling();
 
       } catch (error) {
@@ -1598,6 +1618,124 @@
       } finally {
         button.disabled = false;
         button.textContent = "Create Coupon";
+      }
+    });
+
+    // LIVE CUSTOMER CHAT MANAGEMENT
+    let selectedAdminChatId = null;
+    let adminChatPollingStarted = false;
+
+    async function loadAdminChat() {
+      const list = document.getElementById("adminChatConversations");
+      const message = document.getElementById("adminChatMessage");
+      if (!list) return;
+      try {
+        const data = await request("/api/features/admin/chat/conversations");
+        const conversations = Array.isArray(data.conversations) ? data.conversations : [];
+        list.replaceChildren();
+        if (!conversations.length) {
+          const empty = document.createElement("p");
+          empty.className = "muted";
+          empty.textContent = "No live chat conversations yet.";
+          list.appendChild(empty);
+        }
+        conversations.forEach(conversation => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "secondary";
+          button.style.textAlign = "left";
+          button.style.padding = "12px";
+          const unread = Number(conversation.unread_count) || 0;
+          button.textContent = (conversation.customer_name || conversation.customer_email) +
+            (unread ? " · " + unread + " unread" : "") +
+            (conversation.last_message ? " — " + String(conversation.last_message).slice(0, 75) : "");
+          if (String(selectedAdminChatId) === String(conversation.id)) button.style.borderColor = "var(--accent)";
+          button.addEventListener("click", () => {
+            selectedAdminChatId = conversation.id;
+            loadAdminChatThread();
+            loadAdminChat();
+          });
+          list.appendChild(button);
+        });
+        message.textContent = conversations.length + " conversation(s).";
+        message.className = "message";
+        if (!adminChatPollingStarted) {
+          adminChatPollingStarted = true;
+          window.setInterval(async () => {
+            await loadAdminChat();
+            if (selectedAdminChatId) await loadAdminChatThread();
+          }, 10000);
+        }
+      } catch (error) {
+        message.textContent = error.message || "Unable to load chat conversations.";
+      }
+    }
+
+    async function loadAdminChatThread() {
+      const thread = document.getElementById("adminChatThread");
+      const input = document.getElementById("adminChatInput");
+      const send = document.getElementById("adminChatSend");
+      if (!selectedAdminChatId) return;
+      try {
+        const data = await request("/api/features/admin/chat/" + encodeURIComponent(selectedAdminChatId));
+        const messages = Array.isArray(data.messages) ? data.messages : [];
+        thread.replaceChildren();
+        if (!messages.length) {
+          const empty = document.createElement("p");
+          empty.className = "muted";
+          empty.textContent = "No messages in this conversation yet.";
+          thread.appendChild(empty);
+        }
+        messages.forEach(item => {
+          const bubble = document.createElement("div");
+          bubble.style.maxWidth = "90%";
+          bubble.style.justifySelf = item.sender === "ADMIN" ? "end" : "start";
+          bubble.style.padding = "10px 12px";
+          bubble.style.borderRadius = "9px";
+          bubble.style.background = item.sender === "ADMIN" ? "rgba(215,25,32,.16)" : "rgba(255,255,255,.07)";
+          const who = document.createElement("strong");
+          who.textContent = item.sender === "ADMIN" ? "You (Support)" : "Customer";
+          const body = document.createElement("p");
+          body.style.whiteSpace = "pre-wrap";
+          body.style.margin = "5px 0";
+          body.textContent = item.message;
+          const time = document.createElement("small");
+          time.className = "muted";
+          time.textContent = item.created_at ? formatDate(item.created_at) : "";
+          bubble.append(who, body, time);
+          thread.appendChild(bubble);
+        });
+        thread.scrollTop = thread.scrollHeight;
+        input.disabled = false;
+        send.disabled = false;
+      } catch (error) {
+        thread.textContent = error.message || "Unable to load this chat.";
+      }
+    }
+
+    document.getElementById("adminChatForm").addEventListener("submit", async event => {
+      event.preventDefault();
+      if (!selectedAdminChatId) return;
+      const input = document.getElementById("adminChatInput");
+      const send = document.getElementById("adminChatSend");
+      const message = input.value.trim();
+      if (!message) return;
+      send.disabled = true;
+      send.textContent = "Sending...";
+      try {
+        await request("/api/features/admin/chat/" + encodeURIComponent(selectedAdminChatId), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message })
+        });
+        input.value = "";
+        await loadAdminChatThread();
+        await loadAdminChat();
+      } catch (error) {
+        document.getElementById("adminChatMessage").textContent = error.message || "Unable to send reply.";
+      } finally {
+        send.disabled = false;
+        send.textContent = "Send Reply";
       }
     });
 

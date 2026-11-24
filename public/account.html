@@ -590,21 +590,30 @@ body {
   <!-- CUSTOMER SUPPORT -->
   <section class="dashboard-card" id="support">
     <h2>Customer Support</h2>
-    <p class="muted">
-      Need assistance? Contact the BHADEX PLUGS support team.
-    </p>
+    <p class="muted">Create a support ticket and follow replies from the support team here.</p>
+
+    <form id="supportTicketForm" style="display:grid;gap:12px;margin:18px 0;">
+      <input id="supportSubject" type="text" maxlength="120" placeholder="What do you need help with?" required>
+      <input id="supportOrderReference" type="text" maxlength="100" placeholder="Order reference (optional)">
+      <select id="supportPriority" required>
+        <option value="NORMAL">Normal priority</option>
+        <option value="LOW">Low priority</option>
+        <option value="HIGH">High priority</option>
+      </select>
+      <textarea id="supportMessageInput" rows="4" maxlength="3000" placeholder="Explain your issue (at least 10 characters)" required></textarea>
+      <button class="primary-button" type="submit" id="supportSubmitButton">Submit Support Ticket</button>
+    </form>
+    <div id="supportMessage" class="message" role="status" aria-live="polite"></div>
+    <div id="supportReplyNotice" class="message success" role="status" aria-live="polite"></div>
+
+    <h3 style="margin:22px 0 12px;">Your Support Tickets</h3>
+    <div id="customerSupportTickets">
+      <p class="muted">Your tickets will appear here.</p>
+    </div>
 
     <div class="support-links">
-      <a class="email-support" href="mailto:bhadexplugs@gmail.com">
-        Email Support
-      </a>
-
-      <a class="whatsapp-support"
-        href="https://wa.me/233552817566"
-        target="_blank"
-        rel="noopener noreferrer">
-        WhatsApp Support
-      </a>
+      <a class="email-support" href="mailto:bhadexplugs@gmail.com">Email Support</a>
+      <a class="whatsapp-support" href="https://wa.me/233552817566" target="_blank" rel="noopener noreferrer">WhatsApp Support</a>
     </div>
   </section>
 
@@ -687,6 +696,7 @@ async function loadAccount() {
     await loadCustomerReviewOptions();
     await loadRewards();
     await loadWishlist();
+    await loadSupportTickets();
 
   } catch (error) {
     showMessage("message", error.message);
@@ -1090,6 +1100,123 @@ document.getElementById("trackForm").addEventListener("submit", async event => {
 
   button.disabled = false;
   button.textContent = "Track Order";
+});
+
+// CUSTOMER SUPPORT TICKETS
+let supportTicketSnapshot = new Map();
+let supportPollingStarted = false;
+
+async function loadSupportTickets(showNewReplyNotice = false) {
+  const container = document.getElementById("customerSupportTickets");
+  if (!container) return;
+  try {
+    const result = await apiRequest("/api/features/customer/support");
+    const tickets = Array.isArray(result.tickets) ? result.tickets : [];
+    let newReplies = 0;
+
+    tickets.forEach(ticket => {
+      const previous = supportTicketSnapshot.get(String(ticket.id));
+      if (showNewReplyNotice && ticket.admin_reply && previous !== ticket.admin_reply) newReplies++;
+      supportTicketSnapshot.set(String(ticket.id), ticket.admin_reply || "");
+    });
+
+    if (newReplies > 0) {
+      const notice = document.getElementById("supportReplyNotice");
+      notice.textContent = newReplies + " new support reply/replies received. Check your ticket updates below.";
+    }
+
+    container.replaceChildren();
+    if (!tickets.length) {
+      const empty = document.createElement("p");
+      empty.className = "muted";
+      empty.textContent = "You have not submitted any support tickets yet.";
+      container.appendChild(empty);
+    }
+
+    tickets.forEach(ticket => {
+      const card = document.createElement("article");
+      card.className = "order";
+      card.style.marginBottom = "12px";
+
+      const title = document.createElement("h4");
+      title.textContent = ticket.subject || "Support request";
+
+      const ref = document.createElement("p");
+      ref.className = "reference";
+      ref.textContent = "Ticket: " + (ticket.ticket_reference || ("#" + ticket.id));
+
+      const meta = document.createElement("p");
+      meta.className = "muted";
+      meta.textContent = "Status: " + String(ticket.status || "OPEN").replaceAll("_", " ") +
+        " · Priority: " + (ticket.priority || "NORMAL") +
+        " · Updated: " + (ticket.updated_at ? new Date(ticket.updated_at).toLocaleString() : "Not available");
+
+      const message = document.createElement("p");
+      message.textContent = ticket.message || "";
+
+      card.append(title, ref, meta, message);
+      if (ticket.order_reference) {
+        const orderRef = document.createElement("p");
+        orderRef.className = "muted";
+        orderRef.textContent = "Order reference: " + ticket.order_reference;
+        card.appendChild(orderRef);
+      }
+      if (ticket.admin_reply) {
+        const replyBox = document.createElement("div");
+        replyBox.style.marginTop = "12px";
+        replyBox.style.padding = "12px";
+        replyBox.style.borderRadius = "8px";
+        replyBox.style.background = "rgba(74,222,128,.08)";
+        const replyTitle = document.createElement("strong");
+        replyTitle.textContent = "Support team reply";
+        const replyText = document.createElement("p");
+        replyText.style.marginTop = "6px";
+        replyText.textContent = ticket.admin_reply;
+        replyBox.append(replyTitle, replyText);
+        card.appendChild(replyBox);
+      }
+      container.appendChild(card);
+    });
+
+    if (!supportPollingStarted) {
+      supportPollingStarted = true;
+      window.setInterval(() => loadSupportTickets(true), 30000);
+    }
+  } catch (error) {
+    container.textContent = error.message || "Unable to load support tickets.";
+  }
+}
+
+document.getElementById("supportTicketForm").addEventListener("submit", async event => {
+  event.preventDefault();
+  const button = document.getElementById("supportSubmitButton");
+  const message = document.getElementById("supportMessage");
+  button.disabled = true;
+  button.textContent = "Submitting...";
+  message.textContent = "";
+  try {
+    const result = await apiRequest("/api/features/customer/support", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        subject: document.getElementById("supportSubject").value,
+        reference: document.getElementById("supportOrderReference").value,
+        priority: document.getElementById("supportPriority").value,
+        message: document.getElementById("supportMessageInput").value
+      })
+    });
+    event.currentTarget.reset();
+    message.textContent = "Ticket submitted. Your reference is " +
+      (result.ticket?.ticket_reference || ("#" + result.ticket?.id)) + ".";
+    message.className = "message success";
+    await loadSupportTickets();
+  } catch (error) {
+    message.textContent = error.message || "Unable to submit your ticket.";
+    message.className = "message";
+  } finally {
+    button.disabled = false;
+    button.textContent = "Submit Support Ticket";
+  }
 });
 
 // UPDATE PROFILE

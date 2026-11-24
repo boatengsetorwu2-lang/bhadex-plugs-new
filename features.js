@@ -845,6 +845,77 @@ module.exports = function createFeatureRouter({ pool, requireCustomer, requireAd
     }
   });
 
+
+  // Admin announcement management
+  router.get("/admin/announcements", requireAdmin, async (req, res) => {
+    try {
+      const result = await pool.query(
+        "SELECT id, message, link_url, active, created_at FROM store_announcements ORDER BY created_at DESC LIMIT 50"
+      );
+      res.json({ announcements: result.rows });
+    } catch (error) {
+      console.error("Announcement list error:", error.message);
+      res.status(500).json({ error: "Unable to load announcements." });
+    }
+  });
+
+  router.post("/admin/announcements", requireAdmin, async (req, res) => {
+    try {
+      const message = clean(req.body?.message, 240);
+      const linkUrl = clean(req.body?.linkUrl, 500) || null;
+      const active = req.body?.active !== false;
+      if (!message) return res.status(400).json({ error: "Enter an announcement message." });
+      if (linkUrl) {
+        try {
+          const parsed = new URL(linkUrl);
+          if (!["http:", "https:"].includes(parsed.protocol)) throw new Error("Invalid protocol");
+        } catch {
+          return res.status(400).json({ error: "Enter a valid http or https link." });
+        }
+      }
+      if (active) await pool.query("UPDATE store_announcements SET active = FALSE WHERE active = TRUE");
+      const result = await pool.query(
+        "INSERT INTO store_announcements(message, link_url, active) VALUES($1,$2,$3) RETURNING id, message, link_url, active, created_at",
+        [message, linkUrl, active]
+      );
+      res.status(201).json({ announcement: result.rows[0] });
+    } catch (error) {
+      console.error("Announcement create error:", error.message);
+      res.status(500).json({ error: "Unable to create announcement." });
+    }
+  });
+
+  router.patch("/admin/announcements/:id", requireAdmin, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (!Number.isSafeInteger(id) || id < 1) return res.status(400).json({ error: "Invalid announcement." });
+      const current = await pool.query("SELECT id, message, link_url, active FROM store_announcements WHERE id = $1", [id]);
+      if (!current.rows.length) return res.status(404).json({ error: "Announcement not found." });
+      const old = current.rows[0];
+      const message = req.body?.message === undefined ? old.message : clean(req.body.message, 240);
+      const linkUrl = req.body?.linkUrl === undefined ? old.link_url : (clean(req.body.linkUrl, 500) || null);
+      const active = typeof req.body?.active === "boolean" ? req.body.active : old.active;
+      if (!message) return res.status(400).json({ error: "Enter an announcement message." });
+      if (linkUrl) {
+        try {
+          const parsed = new URL(linkUrl);
+          if (!["http:", "https:"].includes(parsed.protocol)) throw new Error("Invalid protocol");
+        } catch {
+          return res.status(400).json({ error: "Enter a valid http or https link." });
+        }
+      }
+      if (active) await pool.query("UPDATE store_announcements SET active = FALSE WHERE active = TRUE AND id <> $1", [id]);
+      const result = await pool.query(
+        "UPDATE store_announcements SET message = $1, link_url = $2, active = $3 WHERE id = $4 RETURNING id, message, link_url, active, created_at",
+        [message, linkUrl, active, id]
+      );
+      res.json({ announcement: result.rows[0] });
+    } catch (error) {
+      console.error("Announcement update error:", error.message);
+      res.status(500).json({ error: "Unable to update announcement." });
+    }
+  });
+
   router.get("/admin/gift-cards", requireAdmin, async (req, res) => {
     try {
       const result = await pool.query("SELECT id, code, value, balance, active, created_at FROM store_gift_cards ORDER BY created_at DESC LIMIT 200");

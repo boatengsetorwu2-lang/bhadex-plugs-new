@@ -12,6 +12,7 @@ const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 
 const { pool, initializeDatabase } = require("./database");
+const createFeatureRouter = require("./features");
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -53,6 +54,33 @@ function getExpectedAmount(product, packageName) {
   }
 
   return prices[index] * 100;
+}
+
+async function getExpectedPaymentAmount(metadata) {
+  const baseAmount = getExpectedAmount(metadata.product, metadata.package);
+  if (baseAmount === null) return null;
+
+  const couponCode = String(metadata.couponCode || "").trim().toUpperCase();
+  if (!couponCode) return baseAmount;
+
+  const discountPercent = Number(metadata.discountPercent);
+  if (!Number.isInteger(discountPercent) || discountPercent < 1 || discountPercent > 50) {
+    return null;
+  }
+
+  const coupon = await pool.query(
+    "SELECT discount_percent FROM store_coupons WHERE code = $1 LIMIT 1",
+    [couponCode]
+  );
+
+  if (
+    coupon.rows.length === 0 ||
+    Number(coupon.rows[0].discount_percent) !== discountPercent
+  ) {
+    return null;
+  }
+
+  return Math.max(1, baseAmount - Math.floor(baseAmount * discountPercent / 100));
 }
 
 // HTML ESCAPING
@@ -254,15 +282,27 @@ async function savePaidOrder(payment, metadata) {
   const packageName = metadata.package;
   const amount = payment.amount / 100;
 
-  await pool.query(
+  const discountAmount = Number(metadata.discountAmountPesewas || 0) / 100;
+  const couponCode = metadata.couponCode
+    ? String(metadata.couponCode).trim().toUpperCase()
+    : null;
+
+  const insertedOrder = await pool.query(
     `INSERT INTO orders (
       reference, customer_email, product, package, amount,
-      currency, status, fulfillment_status
+      currency, status, fulfillment_status, coupon_code, discount_amount
     )
-    VALUES ($1, $2, $3, $4, $5, 'GHS', 'PAID', 'PENDING')
+    VALUES ($1, $2, $3, $4, $5, 'GHS', 'PAID', 'PENDING', $6, $7)
     ON CONFLICT (reference) DO NOTHING`,
-    [reference, email, product, packageName, amount]
+    [reference, email, product, packageName, amount, couponCode, discountAmount]
   );
+
+  if (insertedOrder.rowCount > 0 && couponCode) {
+    await pool.query(
+      "UPDATE store_coupons SET uses = uses + 1 WHERE code = $1",
+      [couponCode]
+    );
+  }
 
   if (!email) {
     await pool.query(
@@ -432,10 +472,7 @@ app.post(
       const payment = verification.data.data;
       const metadata = payment.metadata || {};
 
-      const expectedAmount = getExpectedAmount(
-        metadata.product,
-        metadata.package
-      );
+      const expectedAmount = await getExpectedPaymentAmount(metadata);
 
       if (
         payment.status !== "success" ||
@@ -527,6 +564,13 @@ function requireCustomer(req, res, next) {
   }
   next();
 }
+
+// ADDITIONAL CUSTOMER, STORE AND ADMIN FEATURES
+app.use("/api/features", createFeatureRouter({
+  pool,
+  requireCustomer,
+  requireAdmin
+}));
 
 // CREATE CUSTOMER SESSION
 function createCustomerSession(req, res, customer) {
@@ -1535,6 +1579,28 @@ app.patch(
         });
       }
 
+      if (fulfillmentStatus === "DELIVERED") {
+        const paidOrder = await pool.query(
+          `SELECT o.reference, o.amount, c.id AS customer_id
+           FROM orders o
+           JOIN customers c ON LOWER(c.email) = LOWER(o.customer_email)
+           WHERE o.reference = $1
+           LIMIT 1`,
+          [reference]
+        );
+
+        if (paidOrder.rows.length) {
+          const row = paidOrder.rows[0];
+          const points = Math.max(1, Math.floor(Number(row.amount)));
+          await pool.query(
+            `INSERT INTO loyalty_ledger(customer_id, order_reference, points)
+             VALUES($1, $2, $3)
+             ON CONFLICT(order_reference) DO NOTHING`,
+            [row.customer_id, row.reference, points]
+          );
+        }
+      }
+
       return res.json({
         success: true,
         order: result.rows[0]
@@ -1555,6 +1621,7 @@ app.post(
   async (req, res) => {
     try {
       const { email, product, packageIndex } = req.body || {};
+      const couponCode = String(req.body?.couponCode || "").trim().toUpperCase();
 
       if (
         !validEmail(typeof email === "string" ? email.trim() : "") ||
@@ -1571,18 +1638,48 @@ app.post(
 
       const amount = PRODUCT_PRICES[product][packageIndex];
       const packageName = PACKAGE_NAMES[packageIndex];
+      const baseAmountPesewas = amount * 100;
+      let finalAmountPesewas = baseAmountPesewas;
+      let discountPercent = 0;
+
+      if (couponCode) {
+        const couponResult = await pool.query(
+          `SELECT discount_percent, expires_at, max_uses, uses
+           FROM store_coupons
+           WHERE code = $1 AND active = TRUE
+             AND (expires_at IS NULL OR expires_at > NOW())
+             AND (max_uses IS NULL OR uses < max_uses)
+           LIMIT 1`,
+          [couponCode]
+        );
+
+        if (!couponResult.rows.length) {
+          return res.status(400).json({ error: "This coupon is invalid, expired or has reached its usage limit." });
+        }
+
+        discountPercent = Number(couponResult.rows[0].discount_percent);
+        finalAmountPesewas = Math.max(
+          1,
+          baseAmountPesewas - Math.floor(baseAmountPesewas * discountPercent / 100)
+        );
+      }
+
+      const discountAmountPesewas = baseAmountPesewas - finalAmountPesewas;
       const baseUrl = process.env.BASE_URL.replace(/\/+$/, "");
 
       const response = await axios.post(
         "https://api.paystack.co/transaction/initialize",
         {
           email: email.trim().toLowerCase(),
-          amount: amount * 100,
+          amount: finalAmountPesewas,
           currency: "GHS",
           callback_url: `${baseUrl}/payment.html`,
           metadata: {
             product,
-            package: packageName
+            package: packageName,
+            couponCode: couponCode || null,
+            discountPercent,
+            discountAmountPesewas
           }
         },
         {
@@ -1629,10 +1726,7 @@ app.get("/api/payments/verify/:reference", async (req, res) => {
     const payment = response.data.data;
     const metadata = payment.metadata || {};
 
-    const expectedAmount = getExpectedAmount(
-      metadata.product,
-      metadata.package
-    );
+    const expectedAmount = await getExpectedPaymentAmount(metadata);
 
     if (
       payment.status !== "success" ||

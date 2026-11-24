@@ -612,6 +612,14 @@
         <div id="adminReviewsList"></div>
       </section>
 
+      <!-- REFERRAL PROGRAM MANAGEMENT -->
+      <section class="panel">
+        <h2>Customer Referrals</h2>
+        <p class="muted">Track invitations and referral rewards after a referred customer's first paid order is delivered.</p>
+        <p id="adminReferralsMessage" class="message">Referral records will load after login.</p>
+        <div id="adminReferralsList" class="inventory-list"></div>
+      </section>
+
       <!-- CUSTOMER MANAGEMENT -->
       <section class="panel">
         <h2>Customer Management</h2>
@@ -1057,6 +1065,7 @@
         await loadOrders();
         await loadCustomers();
         await loadInventory();
+        await loadAdminReferrals();
         await loadCoupons();
         await loadAdminReviews();
         await loadAdminSupport();
@@ -1285,6 +1294,45 @@
         });
       } catch (error) {
         if (error.message !== "Session expired") message.textContent = "Could not load inventory: " + error.message;
+      }
+    }
+
+    // CUSTOMER REFERRAL MANAGEMENT
+    async function loadAdminReferrals() {
+      const message = document.getElementById("adminReferralsMessage");
+      const container = document.getElementById("adminReferralsList");
+      container.replaceChildren();
+      message.textContent = "Loading referral records...";
+      try {
+        const data = await request("/api/features/admin/referrals");
+        const referrals = Array.isArray(data.referrals) ? data.referrals : [];
+        if (!referrals.length) {
+          message.textContent = "No customer referrals have been recorded yet.";
+          return;
+        }
+        const successful = referrals.filter(item => item.status === "REWARDED").length;
+        message.textContent = referrals.length + " referral(s) · " + successful + " successful.";
+        referrals.forEach(item => {
+          const card = document.createElement("article");
+          card.className = "notification-item";
+          const title = document.createElement("strong");
+          title.textContent = (item.referrer_name || "Customer") + " referred " + (item.referred_name || "a new customer");
+          const meta = document.createElement("p");
+          meta.className = "muted";
+          meta.textContent = "Inviter: " + (item.referrer_email || "—") +
+            " · New account: " + (item.referred_email || "—");
+          const status = document.createElement("p");
+          status.textContent = item.status === "REWARDED"
+            ? "Successful · " + Number(item.points_awarded || 0) + " points awarded to each customer"
+            : "Pending · awaiting first paid order to be delivered";
+          const date = document.createElement("p");
+          date.className = "muted";
+          date.textContent = "Code: " + item.referral_code + " · " + formatDate(item.created_at);
+          card.append(title, meta, status, date);
+          container.appendChild(card);
+        });
+      } catch (error) {
+        message.textContent = "Could not load referrals: " + error.message;
       }
     }
 

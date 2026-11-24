@@ -66,7 +66,12 @@ async function getExpectedPaymentAmount(metadata) {
     const discountPercent = Number(metadata.discountPercent);
     if (!Number.isInteger(discountPercent) || discountPercent < 1 || discountPercent > 50) return null;
     const coupon = await pool.query(
-      "SELECT discount_percent FROM store_coupons WHERE code = $1 LIMIT 1",
+      `SELECT discount_percent
+       FROM store_coupons
+       WHERE code = $1 AND active = TRUE
+         AND (expires_at IS NULL OR expires_at > NOW())
+         AND (max_uses IS NULL OR uses < max_uses)
+       LIMIT 1`,
       [couponCode]
     );
     if (!coupon.rows.length || Number(coupon.rows[0].discount_percent) !== discountPercent) return null;

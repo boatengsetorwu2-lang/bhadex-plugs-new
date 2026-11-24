@@ -60,27 +60,39 @@ async function getExpectedPaymentAmount(metadata) {
   const baseAmount = getExpectedAmount(metadata.product, metadata.package);
   if (baseAmount === null) return null;
 
+  let amount = baseAmount;
   const couponCode = String(metadata.couponCode || "").trim().toUpperCase();
-  if (!couponCode) return baseAmount;
-
-  const discountPercent = Number(metadata.discountPercent);
-  if (!Number.isInteger(discountPercent) || discountPercent < 1 || discountPercent > 50) {
-    return null;
+  if (couponCode) {
+    const discountPercent = Number(metadata.discountPercent);
+    if (!Number.isInteger(discountPercent) || discountPercent < 1 || discountPercent > 50) return null;
+    const coupon = await pool.query(
+      "SELECT discount_percent FROM store_coupons WHERE code = $1 LIMIT 1",
+      [couponCode]
+    );
+    if (!coupon.rows.length || Number(coupon.rows[0].discount_percent) !== discountPercent) return null;
+    amount -= Math.floor(baseAmount * discountPercent / 100);
   }
 
-  const coupon = await pool.query(
-    "SELECT discount_percent FROM store_coupons WHERE code = $1 LIMIT 1",
-    [couponCode]
+  const points = Number(metadata.loyaltyPoints || 0);
+  const loyaltyReference = String(metadata.loyaltyReference || "");
+  if (points === 0 && !loyaltyReference) return amount;
+  if (!Number.isInteger(points) || points < 100 || points % 100 !== 0 || !loyaltyReference) return null;
+
+  const redemption = await pool.query(
+    `SELECT points, discount_pesewas, status, expires_at
+     FROM loyalty_redemptions WHERE reference = $1 LIMIT 1`,
+    [loyaltyReference]
   );
-
   if (
-    coupon.rows.length === 0 ||
-    Number(coupon.rows[0].discount_percent) !== discountPercent
-  ) {
-    return null;
-  }
+    !redemption.rows.length ||
+    redemption.rows[0].status !== "PENDING" ||
+    new Date(redemption.rows[0].expires_at) <= new Date() ||
+    Number(redemption.rows[0].points) !== points ||
+    Number(redemption.rows[0].discount_pesewas) !== points
+  ) return null;
 
-  return Math.max(1, baseAmount - Math.floor(baseAmount * discountPercent / 100));
+  amount -= points;
+  return amount >= 100 ? amount : null;
 }
 
 // HTML ESCAPING
@@ -1664,9 +1676,11 @@ app.post(
   "/api/payments/initialize",
   paymentLimiter,
   async (req, res) => {
+    let loyaltyReference = null;
     try {
       const { email, product, packageIndex } = req.body || {};
       const couponCode = String(req.body?.couponCode || "").trim().toUpperCase();
+      const loyaltyPoints = Number(req.body?.loyaltyPoints || 0);
 
       if (
         !validEmail(typeof email === "string" ? email.trim() : "") ||
@@ -1674,11 +1688,12 @@ app.post(
         !Object.prototype.hasOwnProperty.call(PRODUCT_PRICES, product) ||
         !Number.isInteger(packageIndex) ||
         packageIndex < 0 ||
-        packageIndex >= (PRODUCT_PRICES[product]?.length || 0)
+        packageIndex >= (PRODUCT_PRICES[product]?.length || 0) ||
+        !Number.isInteger(loyaltyPoints) ||
+        loyaltyPoints < 0 ||
+        (loyaltyPoints > 0 && (loyaltyPoints < 100 || loyaltyPoints % 100 !== 0))
       ) {
-        return res.status(400).json({
-          error: "Invalid payment details."
-        });
+        return res.status(400).json({ error: "Invalid payment details or points amount." });
       }
 
       const stockResult = await pool.query(
@@ -1705,36 +1720,98 @@ app.post(
            LIMIT 1`,
           [couponCode]
         );
-
         if (!couponResult.rows.length) {
           return res.status(400).json({ error: "This coupon is invalid, expired or has reached its usage limit." });
         }
-
         discountPercent = Number(couponResult.rows[0].discount_percent);
-        finalAmountPesewas = Math.max(
-          1,
-          baseAmountPesewas - Math.floor(baseAmountPesewas * discountPercent / 100)
+        finalAmountPesewas -= Math.floor(baseAmountPesewas * discountPercent / 100);
+      }
+
+      let customerId = null;
+      if (loyaltyPoints > 0) {
+        if (!String(process.env.PAYSTACK_SECRET_KEY || "").startsWith("sk_test_")) {
+          return res.status(403).json({ error: "Points redemption is currently available in test mode only." });
+        }
+        if (!req.session?.customerId) {
+          return res.status(401).json({ error: "Log in to your customer account to redeem points." });
+        }
+        const customerResult = await pool.query(
+          "SELECT id, email FROM customers WHERE id = $1 AND email_verified = TRUE LIMIT 1",
+          [req.session.customerId]
         );
+        if (!customerResult.rows.length ||
+            customerResult.rows[0].email.toLowerCase() !== email.trim().toLowerCase()) {
+          return res.status(403).json({ error: "Use the email address connected to your logged-in account to redeem points." });
+        }
+        customerId = customerResult.rows[0].id;
+        const discountPesewas = loyaltyPoints;
+        if (discountPesewas > finalAmountPesewas - 100) {
+          return res.status(400).json({ error: "Points must leave at least GH₵1.00 to pay." });
+        }
+
+        const client = await pool.connect();
+        try {
+          await client.query("BEGIN");
+          await client.query("SELECT id FROM customers WHERE id = $1 FOR UPDATE", [customerId]);
+          await client.query(
+            `UPDATE loyalty_redemptions SET status = 'RELEASED'
+             WHERE customer_id = $1 AND status = 'PENDING' AND expires_at <= NOW()`,
+            [customerId]
+          );
+          const balanceResult = await client.query(
+            "SELECT COALESCE(SUM(points), 0)::int AS balance FROM loyalty_ledger WHERE customer_id = $1",
+            [customerId]
+          );
+          const reservedResult = await client.query(
+            `SELECT COALESCE(SUM(points), 0)::int AS reserved
+             FROM loyalty_redemptions
+             WHERE customer_id = $1 AND status = 'PENDING' AND expires_at > NOW()`,
+            [customerId]
+          );
+          const available = Number(balanceResult.rows[0].balance) - Number(reservedResult.rows[0].reserved);
+          if (available < loyaltyPoints) {
+            await client.query("ROLLBACK");
+            return res.status(400).json({ error: "You do not have enough available points." });
+          }
+          loyaltyReference = crypto.randomUUID();
+          await client.query(
+            `INSERT INTO loyalty_redemptions
+             (reference, customer_id, points, discount_pesewas, status, expires_at)
+             VALUES ($1, $2, $3, $4, 'PENDING', NOW() + INTERVAL '30 minutes')`,
+            [loyaltyReference, customerId, loyaltyPoints, discountPesewas]
+          );
+          await client.query("COMMIT");
+        } catch (reserveError) {
+          await client.query("ROLLBACK");
+          throw reserveError;
+        } finally {
+          client.release();
+        }
+        finalAmountPesewas -= loyaltyPoints;
       }
 
       const discountAmountPesewas = baseAmountPesewas - finalAmountPesewas;
       const baseUrl = process.env.BASE_URL.replace(/\/+$/, "");
+      const initializePayload = {
+        email: email.trim().toLowerCase(),
+        amount: finalAmountPesewas,
+        currency: "GHS",
+        callback_url: `${baseUrl}/payment.html`,
+        metadata: {
+          product,
+          package: packageName,
+          couponCode: couponCode || null,
+          discountPercent,
+          discountAmountPesewas,
+          loyaltyPoints,
+          loyaltyReference
+        }
+      };
+      if (loyaltyReference) initializePayload.reference = loyaltyReference;
 
       const response = await axios.post(
         "https://api.paystack.co/transaction/initialize",
-        {
-          email: email.trim().toLowerCase(),
-          amount: finalAmountPesewas,
-          currency: "GHS",
-          callback_url: `${baseUrl}/payment.html`,
-          metadata: {
-            product,
-            package: packageName,
-            couponCode: couponCode || null,
-            discountPercent,
-            discountAmountPesewas
-          }
-        },
+        initializePayload,
         {
           headers: {
             Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
@@ -1742,16 +1819,16 @@ app.post(
           }
         }
       );
-
       return res.json(response.data.data);
     } catch (error) {
-      console.error(
-        "Payment initialization error:",
-        error.response?.data || error.message
-      );
-      return res.status(500).json({
-        error: "Unable to initialize payment."
-      });
+      if (loyaltyReference) {
+        await pool.query(
+          "UPDATE loyalty_redemptions SET status = 'RELEASED' WHERE reference = $1 AND status = 'PENDING'",
+          [loyaltyReference]
+        ).catch(() => {});
+      }
+      console.error("Payment initialization error:", error.response?.data || error.message);
+      return res.status(500).json({ error: "Unable to initialize payment." });
     }
   }
 );
@@ -1760,53 +1837,76 @@ app.post(
 app.get("/api/payments/verify/:reference", async (req, res) => {
   try {
     const reference = String(req.params.reference || "").trim();
-
     if (!reference || reference.length > 100) {
-      return res.status(400).json({
-        error: "Invalid payment reference."
-      });
+      return res.status(400).json({ error: "Invalid payment reference." });
     }
-
     const response = await axios.get(
       `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`
-        }
-      }
+      { headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}` } }
     );
-
     const payment = response.data.data;
     const metadata = payment.metadata || {};
-
     const expectedAmount = await getExpectedPaymentAmount(metadata);
-
     if (
       payment.status !== "success" ||
       payment.currency !== "GHS" ||
       expectedAmount === null ||
-      payment.amount !== expectedAmount
+      payment.amount !== expectedAmount ||
+      (metadata.loyaltyReference && metadata.loyaltyReference !== reference)
     ) {
-      return res.status(400).json({
-        error: "Payment has not been confirmed."
-      });
+      return res.status(400).json({ error: "Payment has not been confirmed." });
+    }
+
+    if (metadata.loyaltyReference) {
+      const redemption = await pool.query(
+        "SELECT customer_id FROM loyalty_redemptions WHERE reference = $1 AND status = 'PENDING' AND expires_at > NOW() LIMIT 1",
+        [metadata.loyaltyReference]
+      );
+      if (!redemption.rows.length) {
+        return res.status(400).json({ error: "This points redemption is no longer valid. Please contact support before retrying." });
+      }
     }
 
     await savePaidOrder(payment, metadata);
 
-    return res.json({
-      success: true,
-      reference: payment.reference,
-      status: payment.status
-    });
+    if (metadata.loyaltyReference) {
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        const redeemed = await client.query(
+          `UPDATE loyalty_redemptions SET status = 'REDEEMED', redeemed_at = NOW()
+           WHERE reference = $1 AND status = 'PENDING' AND expires_at > NOW()
+           RETURNING customer_id, points`,
+          [metadata.loyaltyReference]
+        );
+        if (redeemed.rows.length) {
+          await client.query(
+            `INSERT INTO loyalty_ledger(customer_id, order_reference, points)
+             VALUES($1, $2, $3) ON CONFLICT(order_reference) DO NOTHING`,
+            [redeemed.rows[0].customer_id, `REDEEM-${metadata.loyaltyReference}`, -Number(redeemed.rows[0].points)]
+          );
+        } else {
+          const existing = await client.query(
+            "SELECT status FROM loyalty_redemptions WHERE reference = $1 LIMIT 1",
+            [metadata.loyaltyReference]
+          );
+          if (existing.rows[0]?.status !== "REDEEMED") {
+            throw new Error("Points redemption could not be finalized.");
+          }
+        }
+        await client.query("COMMIT");
+      } catch (redeemError) {
+        await client.query("ROLLBACK");
+        throw redeemError;
+      } finally {
+        client.release();
+      }
+    }
+
+    return res.json({ success: true, reference: payment.reference, status: payment.status });
   } catch (error) {
-    console.error(
-      "Payment verification error:",
-      error.response?.data || error.message
-    );
-    return res.status(500).json({
-      error: "Unable to verify payment."
-    });
+    console.error("Payment verification error:", error.response?.data || error.message);
+    return res.status(500).json({ error: "Unable to verify payment." });
   }
 });
 
@@ -1814,6 +1914,19 @@ app.get("/api/payments/verify/:reference", async (req, res) => {
 async function startServer() {
   try {
     await initializeDatabase();
+
+    await pool.query(`CREATE TABLE IF NOT EXISTS loyalty_redemptions (
+      reference VARCHAR(100) PRIMARY KEY,
+      customer_id BIGINT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+      points INTEGER NOT NULL CHECK (points >= 100 AND points % 100 = 0),
+      discount_pesewas INTEGER NOT NULL CHECK (discount_pesewas = points),
+      status VARCHAR(20) NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','REDEEMED','RELEASED')),
+      expires_at TIMESTAMPTZ NOT NULL,
+      redeemed_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS loyalty_redemptions_customer_status_idx
+      ON loyalty_redemptions(customer_id, status, expires_at);`);
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS product_inventory (

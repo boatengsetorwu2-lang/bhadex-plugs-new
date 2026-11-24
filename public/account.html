@@ -1189,6 +1189,7 @@ async function loadSupportTickets(showNewReplyNotice = false) {
 
 document.getElementById("supportTicketForm").addEventListener("submit", async event => {
   event.preventDefault();
+  const form = event.currentTarget;
   const button = document.getElementById("supportSubmitButton");
   const message = document.getElementById("supportMessage");
   button.disabled = true;
@@ -1205,7 +1206,7 @@ document.getElementById("supportTicketForm").addEventListener("submit", async ev
         message: document.getElementById("supportMessageInput").value
       })
     });
-    event.currentTarget.reset();
+    form.reset();
     message.textContent = "Ticket submitted. Your reference is " +
       (result.ticket?.ticket_reference || ("#" + result.ticket?.id)) + ".";
     message.className = "message success";

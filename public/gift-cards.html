@@ -4,37 +4,40 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#080808">
-  <meta name="description" content="Explore BHADEX PLUGS gift card options. View demo denominations and learn about the gift card programme.">
+  <meta name="description" content="Explore planned Amazon, Apple, Google Play, Steam, PlayStation and Xbox gift cards at BHADEX PLUGS.">
   <title>Gift Cards | BHADEX PLUGS</title>
   <link rel="stylesheet" href="styles.css">
   <style>
-    .gift-page { padding: 70px 7% 95px; }
-    .gift-hero { max-width: 760px; margin: 0 auto 45px; text-align: center; }
-    .gift-hero h1 { font-size: clamp(38px,6vw,68px); line-height: 1.03; letter-spacing: -2px; }
-    .gift-hero p:last-child { max-width: 620px; margin: 18px auto 0; color: var(--muted); }
-    .demo-banner { max-width: 900px; margin: 0 auto 35px; padding: 15px 18px; border: 1px solid rgba(255,190,70,.35); border-radius: 12px; background: rgba(255,190,70,.07); color: #f5d69a; text-align: center; font-size: 13px; }
-    .gift-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 20px; max-width: 1050px; margin: 0 auto; }
-    .gift-card { min-height: 300px; padding: 25px; display: flex; flex-direction: column; justify-content: space-between; border: 1px solid var(--border); border-radius: 20px; background: radial-gradient(circle at 90% 5%,rgba(255,38,61,.22),transparent 45%),linear-gradient(145deg,#1c1c1c,#0b0b0b); overflow: hidden; }
-    .gift-card:nth-child(2) { background: radial-gradient(circle at 90% 5%,rgba(180,180,180,.17),transparent 45%),linear-gradient(145deg,#1c1c1c,#0b0b0b); }
-    .gift-card:nth-child(3) { background: radial-gradient(circle at 90% 5%,rgba(255,190,70,.18),transparent 45%),linear-gradient(145deg,#1c1c1c,#0b0b0b); }
-    .gift-card-top { display:flex; justify-content:space-between; color:#aaa; font-size:10px; letter-spacing:2px; }
-    .gift-symbol { color:var(--red); font-size:32px; margin-top:20px; }
-    .gift-value { font-size: clamp(30px,4vw,44px); font-weight:900; letter-spacing:-1px; margin:8px 0; }
-    .gift-card p { color:var(--muted); font-size:13px; }
-    .gift-status { display:inline-flex; align-self:flex-start; margin-top:20px; padding:7px 11px; border:1px solid rgba(255,190,70,.35); border-radius:30px; color:#f5d69a; font-size:10px; font-weight:800; letter-spacing:1px; }
-    .gift-info { max-width:900px; margin:55px auto 0; padding:32px; border:1px solid var(--border); border-radius:18px; background:#111; }
-    .gift-info h2 { font-size:24px; margin-bottom:15px; }
+    .gift-page { padding: 64px 6% 88px; }
+    .gift-hero { max-width: 760px; margin: 0 auto 36px; text-align: center; }
+    .gift-hero h1 { font-size: clamp(36px,6vw,64px); line-height: 1.04; letter-spacing: -2px; }
+    .gift-hero p:last-child { max-width: 650px; margin: 16px auto 0; color: var(--muted); line-height: 1.7; }
+    .availability-banner { max-width: 980px; margin: 0 auto 28px; padding: 15px 18px; border: 1px solid rgba(255,190,70,.35); border-radius: 12px; background: rgba(255,190,70,.07); color: #f5d69a; text-align: center; font-size: 13px; line-height: 1.65; }
+    .gift-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 18px; max-width: 1100px; margin: 0 auto; }
+    .gift-card { min-width: 0; min-height: 225px; padding: 22px; display: flex; flex-direction: column; justify-content: space-between; border: 1px solid var(--border); border-radius: 17px; background: radial-gradient(circle at 90% 5%,rgba(255,38,61,.17),transparent 48%),linear-gradient(145deg,#1c1c1c,#0b0b0b); }
+    .gift-card:nth-child(2) { background: radial-gradient(circle at 90% 5%,rgba(180,180,180,.15),transparent 48%),linear-gradient(145deg,#1c1c1c,#0b0b0b); }
+    .gift-card:nth-child(3) { background: radial-gradient(circle at 90% 5%,rgba(255,190,70,.15),transparent 48%),linear-gradient(145deg,#1c1c1c,#0b0b0b); }
+    .gift-card:nth-child(4) { background: radial-gradient(circle at 90% 5%,rgba(100,150,255,.16),transparent 48%),linear-gradient(145deg,#1c1c1c,#0b0b0b); }
+    .gift-card:nth-child(5) { background: radial-gradient(circle at 90% 5%,rgba(60,100,255,.18),transparent 48%),linear-gradient(145deg,#1c1c1c,#0b0b0b); }
+    .gift-card:nth-child(6) { background: radial-gradient(circle at 90% 5%,rgba(50,190,110,.15),transparent 48%),linear-gradient(145deg,#1c1c1c,#0b0b0b); }
+    .gift-card-top { display:flex; justify-content:space-between; align-items:center; gap:10px; color:#aaa; font-size:10px; letter-spacing:1.5px; }
+    .gift-symbol { color:var(--red); font-size:29px; margin:15px 0 8px; }
+    .gift-card h2 { font-size:21px; margin:0 0 8px; }
+    .gift-card p { color:var(--muted); font-size:13px; line-height:1.6; margin:0; }
+    .gift-status { display:inline-flex; align-self:flex-start; margin-top:18px; padding:7px 10px; border:1px solid rgba(255,190,70,.35); border-radius:30px; color:#f5d69a; font-size:10px; font-weight:800; letter-spacing:1px; }
+    .gift-info { max-width:980px; margin:38px auto 0; padding:26px; border:1px solid var(--border); border-radius:17px; background:#111; }
+    .gift-info h2 { font-size:22px; margin:0 0 12px; }
     .gift-info p,.gift-info li { color:var(--muted); font-size:13px; line-height:1.8; }
-    .gift-info ul { padding-left:20px; margin:12px 0; }
-    .gift-back { display:inline-block; margin-top:22px; color:#ff5265; font-weight:800; font-size:13px; }
-    @media(max-width:750px) { .gift-page { padding:55px 6% 75px; } .gift-grid { grid-template-columns:1fr; } .gift-card { min-height:250px; } .gift-info { padding:24px; } }
+    .gift-info ul { padding-left:20px; margin:10px 0; }
+    .gift-back { display:inline-block; margin-top:17px; color:#ff5265; font-weight:800; font-size:13px; }
+    @media(max-width:850px) { .gift-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+    @media(max-width:560px) { .gift-page { padding:44px 5% 65px; } .gift-grid { grid-template-columns:1fr; gap:13px; } .gift-card { min-height:185px; padding:19px; } .gift-info { padding:20px; } }
   </style>
-
   <link rel="canonical" href="https://bhadex-plugs.onrender.com/gift-cards.html">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="BHADEX PLUGS">
   <meta property="og:title" content="Gift Cards | BHADEX PLUGS">
-  <meta property="og:description" content="Explore BHADEX PLUGS gift card options. View demo denominations and learn about the gift card programme.">
+  <meta property="og:description" content="Explore planned gift card options at BHADEX PLUGS.">
   <meta property="og:url" content="https://bhadex-plugs.onrender.com/gift-cards.html">
 </head>
 <body>
@@ -55,54 +58,82 @@
 
 <main class="gift-page">
   <section class="gift-hero">
-    <p class="eyebrow">✦ A LITTLE SOMETHING EXTRA</p>
+    <p class="eyebrow">✦ DIGITAL GIFT CARDS</p>
     <h1>GIVE THE GIFT OF <span class="red">CHOICE.</span></h1>
-    <p>Discover the planned BHADEX PLUGS gift card options. A simple way to celebrate someone and let them choose a digital experience they enjoy.</p>
+    <p>Explore gift cards planned for BHADEX PLUGS. We are preparing genuine digital codes for shopping, apps, gaming and entertainment.</p>
   </section>
 
-  <div class="demo-banner">
-    <strong>DEMO PREVIEW ONLY</strong> — Gift cards are not currently available to purchase, activate or redeem. No payment is accepted on this page.
+  <div class="availability-banner">
+    <strong>COMING SOON — NOT YET AVAILABLE TO BUY.</strong>
+    We are confirming authorised supply, denominations and country restrictions before accepting gift-card orders. No gift-card payment or delivery is enabled yet.
   </div>
 
-  <section class="gift-grid" aria-label="Gift card preview denominations">
+  <section class="gift-grid" aria-label="Planned gift card categories">
     <article class="gift-card">
       <div>
-        <div class="gift-card-top"><span>BHADEX GIFT</span><span>01 / BHX</span></div>
+        <div class="gift-card-top"><span>SHOPPING</span><span>01 / 06</span></div>
         <div class="gift-symbol">✦</div>
-        <div class="gift-value">GH₵50</div>
-        <p>A thoughtful little digital treat.</p>
+        <h2>Amazon</h2>
+        <p>For eligible purchases of products and digital content on supported Amazon stores.</p>
       </div>
-      <span class="gift-status">COMING SOON · DEMO</span>
+      <span class="gift-status">COMING SOON</span>
     </article>
     <article class="gift-card">
       <div>
-        <div class="gift-card-top"><span>BHADEX GIFT</span><span>02 / BHX</span></div>
+        <div class="gift-card-top"><span>APPS &amp; SERVICES</span><span>02 / 06</span></div>
         <div class="gift-symbol">✦</div>
-        <div class="gift-value">GH₵100</div>
-        <p>More room to explore and enjoy.</p>
+        <h2>Apple</h2>
+        <p>For eligible Apple products, apps, subscriptions and services in supported regions.</p>
       </div>
-      <span class="gift-status">COMING SOON · DEMO</span>
+      <span class="gift-status">COMING SOON</span>
     </article>
     <article class="gift-card">
       <div>
-        <div class="gift-card-top"><span>BHADEX GIFT</span><span>03 / BHX</span></div>
+        <div class="gift-card-top"><span>APPS &amp; GAMES</span><span>03 / 06</span></div>
         <div class="gift-symbol">✦</div>
-        <div class="gift-value">GH₵200</div>
-        <p>A bigger way to share a digital upgrade.</p>
+        <h2>Google Play</h2>
+        <p>For eligible apps, games and digital content on supported Google Play accounts.</p>
       </div>
-      <span class="gift-status">COMING SOON · DEMO</span>
+      <span class="gift-status">COMING SOON</span>
+    </article>
+    <article class="gift-card">
+      <div>
+        <div class="gift-card-top"><span>PC GAMING</span><span>04 / 06</span></div>
+        <div class="gift-symbol">✦</div>
+        <h2>Steam</h2>
+        <p>Add funds to a Steam Wallet for eligible games and content on Steam.</p>
+      </div>
+      <span class="gift-status">COMING SOON</span>
+    </article>
+    <article class="gift-card">
+      <div>
+        <div class="gift-card-top"><span>CONSOLE GAMING</span><span>05 / 06</span></div>
+        <div class="gift-symbol">✦</div>
+        <h2>PlayStation</h2>
+        <p>For eligible PlayStation Store games, add-ons and digital purchases in supported regions.</p>
+      </div>
+      <span class="gift-status">COMING SOON</span>
+    </article>
+    <article class="gift-card">
+      <div>
+        <div class="gift-card-top"><span>CONSOLE GAMING</span><span>06 / 06</span></div>
+        <div class="gift-symbol">✦</div>
+        <h2>Xbox</h2>
+        <p>For eligible Xbox games, add-ons and digital purchases where the code is accepted.</p>
+      </div>
+      <span class="gift-status">COMING SOON</span>
     </article>
   </section>
 
   <section class="gift-info">
-    <p class="eyebrow">HOW IT IS PLANNED TO WORK</p>
-    <h2>Gift simply. Let them choose.</h2>
+    <p class="eyebrow">BEFORE YOU BUY</p>
+    <h2>Genuine codes. Clear region details.</h2>
     <ul>
-      <li>Choose a gift card value from the available options.</li>
-      <li>Send the gift card to someone special.</li>
-      <li>They can use it according to the final programme terms, once the service launches.</li>
+      <li>Gift-card codes can be restricted to a particular country, store or currency.</li>
+      <li>Each listing will show its supported region and available value before purchase.</li>
+      <li>Orders will only open after the supplier and manual delivery process have been tested.</li>
     </ul>
-    <p>The steps above describe the proposed experience only. Purchase, delivery, activation, balance checks and redemption are not enabled yet. Final terms and eligibility will be published before launch.</p>
+    <p>Gift cards are not currently for sale on this page. Availability, denominations and terms will be confirmed before launch.</p>
     <a class="gift-back" href="marketplace.html">Explore the Marketplace ↗</a>
   </section>
 </main>

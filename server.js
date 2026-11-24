@@ -584,9 +584,15 @@ app.use(helmet({
 }));
 
 app.use(express.static(path.join(__dirname, "public"), {
-  maxAge: "5m",
+  maxAge: "1h",
   etag: true,
-  lastModified: true
+  lastModified: true,
+  setHeaders(res, filePath) {
+    // HTML should revalidate on each visit; static assets can be cached for an hour.
+    if (path.extname(filePath).toLowerCase() === ".html") {
+      res.setHeader("Cache-Control", "no-cache");
+    }
+  }
 }));
 
 // ENVIRONMENT CHECKS

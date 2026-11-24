@@ -212,6 +212,33 @@
       line-height: 1.7;
     }
 
+    .whatsapp-float {
+      position: fixed;
+      right: 22px;
+      bottom: 22px;
+      z-index: 999;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 13px 18px;
+      border-radius: 999px;
+      background: #25D366;
+      color: #071b0e;
+      font-weight: 800;
+      font-size: 14px;
+      text-decoration: none;
+      box-shadow: 0 8px 26px rgba(0,0,0,.35);
+      transition: transform .2s ease, box-shadow .2s ease;
+    }
+    .whatsapp-float:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 12px 30px rgba(37,211,102,.25);
+    }
+    .whatsapp-float span { font-size: 20px; line-height: 1; }
+    @media(max-width:750px) {
+      .whatsapp-float { right: 14px; bottom: 14px; padding: 12px 15px; }
+    }
+
     @media(max-width:750px) {
       .hero { min-height: auto; padding: 65px 20px; }
       .hero h1 { font-size: clamp(42px,11vw,65px); letter-spacing: -2px; }
@@ -392,6 +419,15 @@
   </section>
 
 </main>
+
+<a class="whatsapp-float"
+   href="https://wa.me/233552817566"
+   target="_blank"
+   rel="noopener noreferrer"
+   aria-label="Chat with BHADEX PLUGS support on WhatsApp"
+   title="Chat with BHADEX PLUGS on WhatsApp">
+  <span aria-hidden="true">◉</span> Chat on WhatsApp
+</a>
 
 <footer>
   <span>BHADEX PLUGS © 2026</span>

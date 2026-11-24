@@ -1497,8 +1497,28 @@ app.post("/api/admin/logout", requireAdmin, (req, res) => {
 // PRODUCT INVENTORY MANAGEMENT
 app.get("/api/admin/inventory", requireAdmin, async (req, res) => {
   try {
-    const result = await pool.query("SELECT product_name, is_available FROM product_inventory ORDER BY product_name ASC");
-    return res.json({ products: result.rows.map(row => ({ name: row.product_name, isAvailable: row.is_available })) });
+    const result = await pool.query(
+      `SELECT product_name, is_available, stock_quantity, low_stock_threshold
+       FROM product_inventory ORDER BY product_name ASC`
+    );
+    const products = result.rows.map(row => ({
+      name: row.product_name,
+      isAvailable: row.is_available,
+      stockQuantity: row.stock_quantity === null ? null : Number(row.stock_quantity),
+      lowStockThreshold: Number(row.low_stock_threshold),
+      stockStatus: row.stock_quantity === null
+        ? "NOT_TRACKED"
+        : Number(row.stock_quantity) === 0
+          ? "OUT_OF_STOCK"
+          : Number(row.stock_quantity) <= Number(row.low_stock_threshold)
+            ? "LOW_STOCK" : "IN_STOCK"
+    }));
+    return res.json({
+      products,
+      lowStock: products.filter(product =>
+        product.stockStatus === "LOW_STOCK" || product.stockStatus === "OUT_OF_STOCK"
+      )
+    });
   } catch (error) {
     console.error("Inventory load error:", error.message);
     return res.status(500).json({ error: "Unable to load product inventory." });
@@ -1508,22 +1528,60 @@ app.get("/api/admin/inventory", requireAdmin, async (req, res) => {
 app.patch("/api/admin/inventory/:productName", requireAdmin, async (req, res) => {
   try {
     const productName = String(req.params.productName || "");
-    const isAvailable = req.body?.isAvailable;
-    if (!Object.prototype.hasOwnProperty.call(PRODUCT_PRICES, productName) || typeof isAvailable !== "boolean") {
-      return res.status(400).json({ error: "Invalid inventory update." });
+    if (!Object.prototype.hasOwnProperty.call(PRODUCT_PRICES, productName)) {
+      return res.status(400).json({ error: "Invalid product." });
     }
+
+    const hasAvailability = Object.prototype.hasOwnProperty.call(req.body || {}, "isAvailable");
+    const hasStock = Object.prototype.hasOwnProperty.call(req.body || {}, "stockQuantity") ||
+      Object.prototype.hasOwnProperty.call(req.body || {}, "lowStockThreshold");
+    if (!hasAvailability && !hasStock) {
+      return res.status(400).json({ error: "No inventory changes were provided." });
+    }
+    if (hasAvailability && typeof req.body.isAvailable !== "boolean") {
+      return res.status(400).json({ error: "Invalid availability value." });
+    }
+
+    let stockQuantity = null;
+    let lowStockThreshold = 5;
+    if (hasStock) {
+      const rawQuantity = req.body.stockQuantity;
+      const rawThreshold = req.body.lowStockThreshold;
+      stockQuantity = rawQuantity === null || rawQuantity === "" || rawQuantity === undefined
+        ? null : Number(rawQuantity);
+      lowStockThreshold = rawThreshold === "" || rawThreshold === undefined
+        ? 5 : Number(rawThreshold);
+      if ((stockQuantity !== null && (!Number.isSafeInteger(stockQuantity) || stockQuantity < 0)) ||
+          !Number.isSafeInteger(lowStockThreshold) || lowStockThreshold < 0) {
+        return res.status(400).json({ error: "Enter a whole-number stock quantity and a zero-or-higher alert threshold." });
+      }
+    }
+
+    const availability = hasAvailability ? req.body.isAvailable : null;
     const result = await pool.query(
-      `INSERT INTO product_inventory (product_name, is_available, updated_at)
-       VALUES ($1, $2, NOW())
-       ON CONFLICT (product_name)
-       DO UPDATE SET is_available = EXCLUDED.is_available, updated_at = NOW()
-       RETURNING product_name, is_available`,
-      [productName, isAvailable]
+      `UPDATE product_inventory
+       SET is_available = COALESCE($1::boolean, is_available),
+           stock_quantity = CASE WHEN $2::boolean THEN $3::integer ELSE stock_quantity END,
+           low_stock_threshold = CASE WHEN $2::boolean THEN $4::integer ELSE low_stock_threshold END,
+           updated_at = NOW()
+       WHERE product_name = $5
+       RETURNING product_name, is_available, stock_quantity, low_stock_threshold`,
+      [availability, hasStock, stockQuantity, lowStockThreshold, productName]
     );
-    return res.json({ success: true, product: { name: result.rows[0].product_name, isAvailable: result.rows[0].is_available } });
+    if (!result.rows.length) return res.status(404).json({ error: "Inventory product not found." });
+    const row = result.rows[0];
+    return res.json({
+      success: true,
+      product: {
+        name: row.product_name,
+        isAvailable: row.is_available,
+        stockQuantity: row.stock_quantity === null ? null : Number(row.stock_quantity),
+        lowStockThreshold: Number(row.low_stock_threshold)
+      }
+    });
   } catch (error) {
     console.error("Inventory update error:", error.message);
-    return res.status(500).json({ error: "Unable to update product availability." });
+    return res.status(500).json({ error: "Unable to update product inventory." });
   }
 });
 
@@ -2038,8 +2096,13 @@ async function startServer() {
       CREATE TABLE IF NOT EXISTS product_inventory (
         product_name TEXT PRIMARY KEY,
         is_available BOOLEAN NOT NULL DEFAULT TRUE,
+        stock_quantity INTEGER CHECK (stock_quantity IS NULL OR stock_quantity >= 0),
+        low_stock_threshold INTEGER NOT NULL DEFAULT 5 CHECK (low_stock_threshold >= 0),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+      ALTER TABLE product_inventory
+        ADD COLUMN IF NOT EXISTS stock_quantity INTEGER,
+        ADD COLUMN IF NOT EXISTS low_stock_threshold INTEGER NOT NULL DEFAULT 5;
     `);
     for (const productName of Object.keys(PRODUCT_PRICES)) {
       await pool.query(

@@ -88,6 +88,7 @@ const productGrid = document.getElementById("productGrid");
 const searchInput = document.getElementById("search");
 
 let activeCategory = "All";
+let productAvailability = Object.create(null);
 
 const RECENT_STORAGE_KEY = "bhadexRecentlyViewed";
 const MAX_RECENT_PRODUCTS = 6;
@@ -131,6 +132,19 @@ premiumStyles.textContent = `
   .product-logo .logo-fallback.is-visible {
     display: flex;
   }
+
+  .inventory-status {
+    display: inline-flex;
+    align-items: center;
+    margin-top: 8px;
+    padding: 5px 9px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .inventory-status.available { color: #8ee6a0; background: rgba(46,160,67,0.14); }
+  .inventory-status.out-of-stock { color: #ff9a9a; background: rgba(229,9,20,0.16); }
+  .buy-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
   .package-select {
     width: 100%;
@@ -775,6 +789,7 @@ function openProductModal(product) {
   addRecentlyViewed(product);
 
   const content = document.getElementById("modalProductContent");
+  const isAvailable = productAvailability[product.name] !== false;
 
   const benefits = product.benefits.map(benefit =>
     `<li>${escapeHTML(benefit)}</li>`
@@ -792,6 +807,7 @@ function openProductModal(product) {
     <span class="product-category">${escapeHTML(product.category)}</span>
     <h2 id="modalProductName">${escapeHTML(product.name)}</h2>
     <p class="modal-description">${escapeHTML(product.description)}</p>
+    <p class="inventory-status ${isAvailable ? "available" : "out-of-stock"}">${isAvailable ? "Available" : "Out of Stock"}</p>
 
     <h4>What's included</h4>
     <ul class="modal-benefits">${benefits}</ul>
@@ -801,8 +817,8 @@ function openProductModal(product) {
       <select id="modalPackage" class="package-select">${packages}</select>
     </div>
 
-    <button type="button" id="modalCheckout" class="buy-btn">
-      Continue to Checkout
+    <button type="button" id="modalCheckout" class="buy-btn" ${isAvailable ? "" : "disabled"}>
+      ${isAvailable ? "Continue to Checkout" : "Out of Stock"}
     </button>
 
     <p class="product-note">
@@ -923,6 +939,11 @@ function startCheckout(productName, packageIndex) {
 
   if (!product || product.prices[packageIndex] === undefined) {
     alert("Please select a valid subscription.");
+    return;
+  }
+
+  if (productAvailability[product.name] === false) {
+    alert("This subscription is currently out of stock. Please check back later.");
     return;
   }
 
@@ -1083,11 +1104,13 @@ function renderProducts() {
     ).join("");
 
     const selectId = `package-${products.indexOf(product)}`;
+    const isAvailable = productAvailability[product.name] !== false;
 
     return `
       <div class="product-card">
         <div class="product-card-top">
           <span class="product-category">${escapeHTML(product.category)}</span>
+          <span class="inventory-status ${isAvailable ? "available" : "out-of-stock"}">${isAvailable ? "Available" : "Out of Stock"}</span>
         </div>
 
         <div class="product-logo">
@@ -1116,8 +1139,8 @@ function renderProducts() {
           <label for="${selectId}">Choose duration</label>
           <select id="${selectId}" class="package-select">${packageOptions}</select>
 
-          <button class="buy-btn" type="button" data-product="${escapeHTML(product.name)}" data-select="${selectId}">
-            Continue to Checkout
+          <button class="buy-btn" type="button" data-product="${escapeHTML(product.name)}" data-select="${selectId}" ${isAvailable ? "" : "disabled"}>
+            ${isAvailable ? "Continue to Checkout" : "Out of Stock"}
           </button>
         </div>
 
@@ -1131,7 +1154,7 @@ function renderProducts() {
   productGrid.querySelectorAll(".buy-btn").forEach(button => {
     button.addEventListener("click", () => {
       const product = products.find(item => item.name === button.dataset.product);
-      if (!product) return;
+      if (!product || productAvailability[product.name] === false) return;
 
       const packageSelect = document.getElementById(button.dataset.select);
       const packageIndex = Number(packageSelect.value);
@@ -1172,6 +1195,20 @@ document.querySelectorAll(".category").forEach(button => {
   });
 });
 
+// LOAD PRODUCT AVAILABILITY
+async function loadProductAvailability() {
+  try {
+    const response = await fetch("/api/products/availability", { cache: "no-store" });
+    if (!response.ok) throw new Error("Availability request failed.");
+    const data = await response.json();
+    productAvailability = data.availability || Object.create(null);
+    renderProducts();
+  } catch (error) {
+    console.warn("Product availability could not be loaded:", error.message);
+  }
+}
+
 // INITIALIZE
 renderProducts();
 renderRecentlyViewed();
+loadProductAvailability();

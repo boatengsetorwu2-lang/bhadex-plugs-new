@@ -376,6 +376,14 @@ async function savePaidOrder(payment, metadata) {
     );
   }
 
+  await pool.query(
+    `UPDATE abandoned_checkouts
+     SET status = 'COMPLETED', completed_at = COALESCE(completed_at, NOW()),
+         updated_at = NOW()
+     WHERE checkout_reference = $1`,
+    [reference]
+  );
+
   if (!email) {
     await pool.query(
       `UPDATE orders
@@ -1734,6 +1742,40 @@ app.get("/api/admin/orders", requireAdmin, async (req, res) => {
   }
 });
 
+// ADMIN ABANDONED CHECKOUTS
+app.get("/api/admin/abandoned-checkouts", requireAdmin, async (req, res) => {
+  try {
+    await pool.query(
+      `UPDATE abandoned_checkouts
+       SET status = 'ABANDONED', updated_at = NOW()
+       WHERE status = 'PENDING'
+         AND created_at <= NOW() - INTERVAL '30 minutes'`
+    );
+
+    const result = await pool.query(
+      `SELECT id, checkout_reference, customer_email, product,
+              package_name, amount, status, created_at, completed_at
+       FROM abandoned_checkouts
+       ORDER BY created_at DESC
+       LIMIT 500`
+    );
+
+    const stats = await pool.query(
+      `SELECT
+         COUNT(*)::int AS total,
+         COUNT(*) FILTER (WHERE status = 'PENDING')::int AS pending,
+         COUNT(*) FILTER (WHERE status = 'ABANDONED')::int AS abandoned,
+         COUNT(*) FILTER (WHERE status = 'COMPLETED')::int AS completed
+       FROM abandoned_checkouts`
+    );
+
+    return res.json({ checkouts: result.rows, stats: stats.rows[0] });
+  } catch (error) {
+    console.error("Abandoned checkout load error:", error.message);
+    return res.status(500).json({ error: "Unable to load abandoned checkouts." });
+  }
+});
+
 // ADMIN DELIVERY STATUS UPDATE
 app.patch(
   "/api/admin/orders/:reference/status",
@@ -2041,7 +2083,24 @@ app.post(
           }
         }
       );
-      return res.json(response.data.data);
+
+      const checkout = response.data?.data;
+      if (checkout?.reference) {
+        await pool.query(
+          `INSERT INTO abandoned_checkouts
+             (checkout_reference, customer_email, product, package_name, amount, status)
+           VALUES ($1, $2, $3, $4, $5, 'PENDING')
+           ON CONFLICT (checkout_reference) DO NOTHING`,
+          [
+            checkout.reference,
+            email.trim().toLowerCase(),
+            product,
+            packageName,
+            finalAmountPesewas / 100
+          ]
+        );
+      }
+      return res.json(checkout);
     } catch (error) {
       if (loyaltyReference) {
         await pool.query(

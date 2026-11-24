@@ -260,6 +260,16 @@ async function initializeDatabase() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
+    CREATE TABLE IF NOT EXISTS admin_activity_log (
+      id BIGSERIAL PRIMARY KEY,
+      actor VARCHAR(80) NOT NULL DEFAULT 'Admin',
+      action VARCHAR(80) NOT NULL,
+      details TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS admin_activity_log_created_idx
+      ON admin_activity_log(created_at DESC);
+
     CREATE TABLE IF NOT EXISTS newsletter_subscribers (
       id BIGSERIAL PRIMARY KEY,
       email VARCHAR(255) UNIQUE NOT NULL,

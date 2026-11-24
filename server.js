@@ -76,6 +76,7 @@ async function getExpectedPaymentAmount(metadata) {
   const points = Number(metadata.loyaltyPoints || 0);
   const loyaltyReference = String(metadata.loyaltyReference || "");
   if (points === 0 && !loyaltyReference) return amount;
+  if (!String(process.env.PAYSTACK_SECRET_KEY || "").startsWith("sk_test_")) return null;
   if (!Number.isInteger(points) || points < 100 || points % 100 !== 0 || !loyaltyReference) return null;
 
   const redemption = await pool.query(
@@ -1859,11 +1860,18 @@ app.get("/api/payments/verify/:reference", async (req, res) => {
 
     if (metadata.loyaltyReference) {
       const redemption = await pool.query(
-        "SELECT customer_id FROM loyalty_redemptions WHERE reference = $1 AND status IN ('PENDING','REDEEMED') AND (status = 'REDEEMED' OR expires_at > NOW()) LIMIT 1",
+        `SELECT r.customer_id, c.email
+         FROM loyalty_redemptions r
+         JOIN customers c ON c.id = r.customer_id
+         WHERE r.reference = $1
+           AND r.status IN ('PENDING','REDEEMED')
+           AND (r.status = 'REDEEMED' OR r.expires_at > NOW())
+         LIMIT 1`,
         [metadata.loyaltyReference]
       );
-      if (!redemption.rows.length) {
-        return res.status(400).json({ error: "This points redemption is no longer valid. Please contact support before retrying." });
+      if (!redemption.rows.length ||
+          redemption.rows[0].email.toLowerCase() !== String(payment.customer?.email || '').toLowerCase()) {
+        return res.status(400).json({ error: 'This points redemption is no longer valid for this payment email.' });
       }
     }
 

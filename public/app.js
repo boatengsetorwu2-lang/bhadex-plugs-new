@@ -927,6 +927,15 @@ function createCheckoutModal() {
           </div>
 
           <div class="checkout-field">
+            <label for="checkoutCouponCode">Coupon / Promo Code (optional)</label>
+            <div style="display:flex;gap:8px;align-items:stretch;">
+              <input type="text" id="checkoutCouponCode" maxlength="30" placeholder="Enter promo code" autocomplete="off" style="flex:1;min-width:0;">
+              <button type="button" id="applyCheckoutCoupon" class="checkout-submit" style="width:auto;padding:0 14px;">Apply</button>
+            </div>
+            <small id="checkoutCouponMessage" style="display:block;color:#aaa;margin-top:7px;line-height:1.5;" aria-live="polite">Enter a valid promo code to check its discount.</small>
+          </div>
+
+          <div class="checkout-field">
             <label for="checkoutLoyaltyPoints">Redeem loyalty points (optional)</label>
             <input type="number" id="checkoutLoyaltyPoints" min="0" step="100" value="0" placeholder="Multiples of 100" disabled>
             <small id="checkoutLoyaltyInfo" style="display:block;color:#aaa;margin-top:7px;line-height:1.5;">Log in to your BHADEX PLUGS account to use points. 100 points = GH₵1. Test-mode only.</small>
@@ -964,6 +973,17 @@ function createCheckoutModal() {
 
   document.getElementById("checkoutLoyaltyPoints")
     .addEventListener("input", updateLoyaltyPreview);
+
+  document.getElementById("applyCheckoutCoupon")
+    .addEventListener("click", applyCheckoutCoupon);
+
+  document.getElementById("checkoutCouponCode")
+    .addEventListener("input", () => {
+      checkoutCouponCode = "";
+      checkoutCouponDiscount = 0;
+      document.getElementById("checkoutCouponMessage").textContent = "Apply the code to validate it.";
+      document.getElementById("checkoutCouponMessage").style.color = "#aaa";
+    });
 }
 
 async function loadCheckoutLoyalty() {
@@ -999,6 +1019,8 @@ function updateLoyaltyPreview() {
 let checkoutProduct = null;
 let checkoutPackageIndex = null;
 let checkoutInProgress = false;
+let checkoutCouponCode = "";
+let checkoutCouponDiscount = 0;
 
 // OPEN PREMIUM CHECKOUT
 function startCheckout(productName, packageIndex) {
@@ -1026,6 +1048,11 @@ function startCheckout(productName, packageIndex) {
     `GH₵${product.prices[packageIndex]}`;
 
   document.getElementById("checkoutEmail").value = "";
+  checkoutCouponCode = "";
+  checkoutCouponDiscount = 0;
+  document.getElementById("checkoutCouponCode").value = "";
+  document.getElementById("checkoutCouponMessage").textContent = "Enter a valid promo code to check its discount.";
+  document.getElementById("checkoutCouponMessage").style.color = "#aaa";
   document.getElementById("checkoutLoyaltyPoints").value = "0";
   document.getElementById("checkoutLoyaltyPoints").disabled = true;
   document.getElementById("checkoutLoyaltyInfo").textContent = "Checking your account points...";
@@ -1055,6 +1082,48 @@ function closeCheckoutModal() {
   if (modal) {
     modal.classList.remove("active");
     document.body.classList.remove("modal-open");
+  }
+}
+
+// APPLY AND VALIDATE COUPON
+async function applyCheckoutCoupon() {
+  const input = document.getElementById("checkoutCouponCode");
+  const message = document.getElementById("checkoutCouponMessage");
+  const button = document.getElementById("applyCheckoutCoupon");
+  const code = input.value.trim().toUpperCase();
+
+  if (!code) {
+    checkoutCouponCode = "";
+    checkoutCouponDiscount = 0;
+    message.textContent = "Enter a coupon code first.";
+    message.style.color = "#ff8585";
+    return;
+  }
+
+  button.disabled = true;
+  button.textContent = "Checking...";
+  try {
+    const response = await fetch("/api/features/coupons/validate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code })
+    });
+    const data = await response.json();
+    if (!response.ok || !data.valid) throw new Error(data.error || "Coupon could not be applied.");
+
+    checkoutCouponCode = data.code;
+    checkoutCouponDiscount = Number(data.discountPercent || 0);
+    input.value = checkoutCouponCode;
+    message.textContent = checkoutCouponDiscount + "% discount applied. It will be checked again before payment.";
+    message.style.color = "#8ee6a0";
+  } catch (error) {
+    checkoutCouponCode = "";
+    checkoutCouponDiscount = 0;
+    message.textContent = error.message || "Unable to validate coupon.";
+    message.style.color = "#ff8585";
+  } finally {
+    button.disabled = false;
+    button.textContent = "Apply";
   }
 }
 
@@ -1108,6 +1177,7 @@ async function submitCheckout(event) {
         product: checkoutProduct.name,
         packageIndex: checkoutPackageIndex,
         email: email,
+        couponCode: checkoutCouponCode,
         loyaltyPoints: loyaltyPoints
       })
     });

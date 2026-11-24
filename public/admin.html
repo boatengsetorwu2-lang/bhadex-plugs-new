@@ -1705,7 +1705,7 @@
             saveButton.textContent = "Saving...";
 
             try {
-              await request(
+              const result = await request(
                 "/api/admin/orders/" +
                 encodeURIComponent(order.reference) +
                 "/status",
@@ -1720,10 +1720,11 @@
                 }
               );
 
-              ordersMessage.textContent =
-                "Delivery status updated successfully.";
-
               await loadOrders();
+
+              ordersMessage.textContent =
+                "Delivery status updated successfully. " +
+                (result.statusEmailMessage || "No email result was returned.");
 
             } catch (error) {
               ordersMessage.textContent = error.message;

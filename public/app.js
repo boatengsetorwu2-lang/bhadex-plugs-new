@@ -146,6 +146,24 @@ premiumStyles.textContent = `
   .inventory-status.out-of-stock { color: #ff9a9a; background: rgba(229,9,20,0.16); }
   .buy-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
+  .wishlist-btn {
+    width: 100%;
+    margin-top: 10px;
+    padding: 11px 13px;
+    background: #171717;
+    color: #fff;
+    border: 1px solid #555;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+  }
+  .wishlist-btn:hover, .wishlist-btn.saved {
+    border-color: #e50914;
+    color: #ff7379;
+    background: rgba(229,9,20,.12);
+  }
+  .wishlist-btn:disabled { opacity: .65; cursor: wait; }
+
   .package-select {
     width: 100%;
     background: #151515 !important;
@@ -1177,6 +1195,10 @@ function renderProducts() {
           View Product Details
         </button>
 
+        <button class="wishlist-btn" type="button" data-wishlist="${escapeHTML(product.name)}">
+          ♡ Save to Wishlist
+        </button>
+
         <div class="product-benefits">
           <h4>What's included</h4>
           <ul>${benefits}</ul>
@@ -1212,6 +1234,36 @@ function renderProducts() {
       }
 
       startCheckout(product.name, packageIndex);
+    });
+  });
+
+  productGrid.querySelectorAll("[data-wishlist]").forEach(button => {
+    button.addEventListener("click", async () => {
+      const productName = button.dataset.wishlist;
+      button.disabled = true;
+      button.textContent = "Saving...";
+      try {
+        const response = await fetch("/api/features/customer/wishlist", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ product: productName })
+        });
+        const data = await response.json();
+        if (response.status === 401) {
+          alert("Please log in to your BHADEX PLUGS account to save wishlist items.");
+          window.location.href = "login.html";
+          return;
+        }
+        if (!response.ok) throw new Error(data.error || "Could not save this item.");
+        button.classList.add("saved");
+        button.textContent = "♥ Saved to Wishlist";
+      } catch (error) {
+        alert(error.message || "Could not save this item.");
+        button.textContent = "♡ Save to Wishlist";
+      } finally {
+        button.disabled = false;
+      }
     });
   });
 

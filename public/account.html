@@ -394,6 +394,7 @@ body {
     <a href="#orders">My Orders</a>
     <a href="#rewards">Loyalty Rewards</a>
     <a href="#wishlist">Wishlist</a>
+    <a href="#reviews">Write a Review</a>
     <a href="#profile">My Profile</a>
     <a href="#security">Security</a>
     <a href="#support">Support</a>
@@ -474,6 +475,31 @@ body {
     </div>
     <div id="wishlistMessage" class="message" role="status"></div>
     <a href="marketplace.html" class="primary-button" style="display:inline-block;text-decoration:none;margin-top:12px;">Explore Marketplace</a>
+  </section>
+
+  <!-- PRODUCT REVIEWS -->
+  <section class="dashboard-card" id="reviews">
+    <h2>Write a Product Review</h2>
+    <p class="muted">Reviews are available for paid orders marked as delivered. Each order can receive one review. Submissions are checked before appearing publicly.</p>
+    <form id="customerReviewForm">
+      <div class="form-group">
+        <label for="reviewOrder">Delivered Order</label>
+        <select id="reviewOrder" required><option value="">Loading eligible orders...</option></select>
+      </div>
+      <div class="form-group">
+        <label for="reviewRating">Your Rating</label>
+        <select id="reviewRating" required>
+          <option value="">Choose a rating</option><option value="5">5 - Excellent</option><option value="4">4 - Very good</option><option value="3">3 - Good</option><option value="2">2 - Fair</option><option value="1">1 - Poor</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="reviewText">Your Review</label>
+        <textarea id="reviewText" rows="4" maxlength="1500" minlength="5" placeholder="Share your experience (at least 5 characters)." required></textarea>
+      </div>
+      <button class="primary-button" type="submit" id="submitReviewButton">Submit Review</button>
+    </form>
+    <div id="reviewMessage" class="message" role="status"></div>
+    <div id="reviewEligibleNote" class="muted" style="margin-top:12px;"></div>
   </section>
 
   <!-- TRACK ORDER -->
@@ -658,6 +684,7 @@ async function loadAccount() {
     profileEmail.value = customer.email || "";
 
     await loadOrders();
+    await loadCustomerReviewOptions();
     await loadRewards();
     await loadWishlist();
 
@@ -795,6 +822,70 @@ async function loadWishlist() {
     container.textContent = error.message || "Unable to load your wishlist.";
   }
 }
+
+// LOAD DELIVERED ORDERS THAT CAN STILL BE REVIEWED
+async function loadCustomerReviewOptions() {
+  const select = document.getElementById("reviewOrder");
+  const note = document.getElementById("reviewEligibleNote");
+  try {
+    const result = await apiRequest("/api/features/customer/reviews");
+    const eligible = Array.isArray(result.eligibleOrders) ? result.eligibleOrders : [];
+    select.replaceChildren();
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = eligible.length ? "Choose a delivered order" : "No eligible delivered orders";
+    select.appendChild(placeholder);
+    eligible.forEach(order => {
+      const option = document.createElement("option");
+      option.value = order.reference;
+      option.textContent = order.product + " — " + order.reference;
+      select.appendChild(option);
+    });
+    select.disabled = eligible.length === 0;
+    document.getElementById("submitReviewButton").disabled = eligible.length === 0;
+    note.textContent = eligible.length
+      ? eligible.length + " delivered order(s) available for review."
+      : "When one of your paid orders is marked Delivered, it will appear here.";
+  } catch (error) {
+    select.replaceChildren();
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = "Unable to load eligible orders";
+    select.appendChild(option);
+    select.disabled = true;
+    note.textContent = error.message || "Unable to load review options.";
+  }
+}
+
+async function submitCustomerReview(event) {
+  event.preventDefault();
+  const button = document.getElementById("submitReviewButton");
+  const message = document.getElementById("reviewMessage");
+  button.disabled = true;
+  button.textContent = "Submitting...";
+  message.textContent = "";
+  try {
+    const result = await apiRequest("/api/features/customer/reviews", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        reference: document.getElementById("reviewOrder").value,
+        rating: Number(document.getElementById("reviewRating").value),
+        review: document.getElementById("reviewText").value
+      })
+    });
+    message.textContent = result.message || "Your review has been submitted for approval.";
+    document.getElementById("customerReviewForm").reset();
+    await loadCustomerReviewOptions();
+  } catch (error) {
+    message.textContent = error.message || "Unable to submit your review.";
+  } finally {
+    button.textContent = "Submit Review";
+    button.disabled = document.getElementById("reviewOrder").disabled;
+  }
+}
+
+document.getElementById("customerReviewForm").addEventListener("submit", submitCustomerReview);
 
 // UPDATE STATISTICS
 function updateStatistics() {

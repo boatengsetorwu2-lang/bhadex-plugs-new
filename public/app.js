@@ -835,7 +835,7 @@ function openProductModal(product) {
 
   content.innerHTML = `
     <div class="modal-product-logo">
-      <img src="${escapeHTML(product.logo)}" alt="${escapeHTML(product.name)} logo">
+      <img src="${escapeHTML(product.logo)}" alt="${escapeHTML(product.name)} logo" loading="lazy" decoding="async">
     </div>
 
     <span class="product-category">${escapeHTML(product.category)}</span>
@@ -1324,6 +1324,7 @@ function renderProducts() {
             src="${escapeHTML(product.logo)}"
             alt="${escapeHTML(product.name)} logo"
             loading="lazy"
+            decoding="async"
             onerror="this.style.display='none'; this.nextElementSibling.classList.add('is-visible');"
           >
           <span class="logo-fallback">${escapeHTML(product.name.substring(0, 2).toUpperCase())}</span>

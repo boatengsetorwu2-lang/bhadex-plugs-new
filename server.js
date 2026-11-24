@@ -1692,18 +1692,18 @@ app.patch(
       const result = await pool.query(
         `UPDATE orders
          SET
-           fulfillment_status = $1,
+           fulfillment_status = $1::varchar,
            delivered_at = CASE
-             WHEN $1 = 'DELIVERED'
+             WHEN $2::text = 'DELIVERED'
              THEN COALESCE(delivered_at, NOW())
              ELSE delivered_at
            END,
            fulfillment_updated_at = NOW(),
            updated_at = NOW()
-         WHERE reference = $2
+         WHERE reference = $3
            AND status = 'PAID'
          RETURNING reference, fulfillment_status, delivered_at`,
-        [fulfillmentStatus, reference]
+        [fulfillmentStatus, fulfillmentStatus, reference]
       );
 
       if (result.rows.length === 0) {

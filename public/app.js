@@ -1268,6 +1268,107 @@ async function loadPublicReviews() {
   }
 }
 
+
+/* SUBSCRIPTION COMPARISON */
+function initializeSubscriptionCompare() {
+  const choices = document.getElementById("compareChoices");
+  const results = document.getElementById("compareResults");
+  const message = document.getElementById("compareMessage");
+  if (!choices || !results || !message) return;
+
+  choices.innerHTML = products.map((product, index) => `
+    <label class="compare-choice">
+      <input type="checkbox" value="${escapeHTML(product.name)}" ${index < 2 ? "checked" : ""}>
+      <span>${escapeHTML(product.name)}</span>
+    </label>
+  `).join("");
+
+  function updateComparison() {
+    const selected = Array.from(choices.querySelectorAll("input:checked"))
+      .map(input => products.find(product => product.name === input.value))
+      .filter(Boolean);
+    choices.querySelectorAll("input").forEach(input => {
+      input.disabled = !input.checked && selected.length >= 3;
+    });
+
+    if (selected.length < 2) {
+      message.textContent = "Select at least two products to compare.";
+      results.innerHTML = "";
+      return;
+    }
+    message.textContent = selected.length + " products selected. Prices are shown in GH₵.";
+    const headers = selected.map(product => `<th scope="col">${escapeHTML(product.name)}</th>`).join("");
+    const rows = [
+      ["Category", product => escapeHTML(product.category)],
+      ["1 Month", product => product.prices[0] === undefined ? "Not offered" : "GH₵" + product.prices[0].toFixed(2)],
+      ["3 Months", product => product.prices[1] === undefined ? "Not offered" : "GH₵" + product.prices[1].toFixed(2)],
+      ["1 Year", product => product.prices[2] === undefined ? "Not offered" : "GH₵" + product.prices[2].toFixed(2)],
+      ["Availability", product => productAvailability[product.name] === false ? "Out of stock" : "Available"]
+    ];
+    results.innerHTML = `
+      <div class="compare-table-wrap"><table class="compare-table">
+        <thead><tr><th scope="col">Plan details</th>${headers}</tr></thead>
+        <tbody>${rows.map(([label, value]) => `<tr><th scope="row">${label}</th>${selected.map(product => `<td>${value(product)}</td>`).join("")}</tr>`).join("")}</tbody>
+      </table></div>
+      <p class="compare-disclaimer">Prices and availability may change. Confirm the current selection in the marketplace before checkout.</p>
+    `;
+  }
+  choices.addEventListener("change", updateComparison);
+  updateComparison();
+}
+
+/* ON-DEVICE PRODUCT RECOMMENDATIONS */
+function initializePersonalizedRecommendations() {
+  if (!productGrid || document.getElementById("personalizedRecommendations")) return;
+  const section = document.createElement("section");
+  section.id = "personalizedRecommendations";
+  section.className = "recommendations-section";
+  section.innerHTML = `
+    <div class="recommendations-heading">
+      <div><p class="eyebrow">PICKED FROM YOUR BROWSING</p><h2>RECOMMENDED FOR YOU</h2>
+      <p>Suggestions based on products you've recently viewed on this device.</p></div>
+    </div>
+    <div id="recommendationsGrid" class="recommendations-grid"></div>
+  `;
+  productGrid.parentNode.insertBefore(section, productGrid);
+
+  let recentNames = [];
+  try {
+    const saved = JSON.parse(localStorage.getItem(RECENT_STORAGE_KEY) || "[]");
+    if (Array.isArray(saved)) recentNames = saved.filter(name => typeof name === "string");
+  } catch (_) {}
+  const viewed = recentNames.map(name => products.find(product => product.name === name)).filter(Boolean);
+  const preferredCategory = viewed[0]?.category;
+  let suggestions = preferredCategory
+    ? products.filter(product => product.category === preferredCategory && !recentNames.includes(product.name))
+    : products.filter(product => !recentNames.includes(product.name));
+  if (suggestions.length < 3) {
+    suggestions = suggestions.concat(products.filter(product =>
+      !recentNames.includes(product.name) && !suggestions.some(item => item.name === product.name)
+    ));
+  }
+  suggestions = suggestions.filter(product => productAvailability[product.name] !== false).slice(0, 3);
+  const grid = section.querySelector("#recommendationsGrid");
+  if (!suggestions.length) {
+    grid.textContent = "You've explored our current collection. Browse all products below.";
+    return;
+  }
+  grid.innerHTML = suggestions.map(product => `
+    <article class="recommendation-card">
+      <span class="recommendation-category">${escapeHTML(product.category)}</span>
+      <h3>${escapeHTML(product.name)}</h3>
+      <p>${escapeHTML(product.description.slice(0, 125))}${product.description.length > 125 ? "…" : ""}</p>
+      <button type="button" class="recommendation-view" data-recommend-product="${escapeHTML(product.name)}">View product</button>
+    </article>
+  `).join("");
+  grid.querySelectorAll("[data-recommend-product]").forEach(button => {
+    button.addEventListener("click", () => {
+      const product = products.find(item => item.name === button.dataset.recommendProduct);
+      if (product) openProductModal(product);
+    });
+  });
+}
+
 // RENDER PRODUCTS
 function renderProducts() {
   if (!productGrid) return;
@@ -1446,6 +1547,8 @@ async function loadProductAvailability() {
     const data = await response.json();
     productAvailability = data.availability || Object.create(null);
     renderProducts();
+    const recommendations = document.getElementById("personalizedRecommendations");
+    if (recommendations) { recommendations.remove(); initializePersonalizedRecommendations(); }
   } catch (error) {
     console.warn("Product availability could not be loaded:", error.message);
   }
@@ -1454,6 +1557,8 @@ async function loadProductAvailability() {
 // INITIALIZE
 renderProducts();
 renderRecentlyViewed();
+initializeSubscriptionCompare();
+initializePersonalizedRecommendations();
 loadProductAvailability();
 loadPublicReviews();
 

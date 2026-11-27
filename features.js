@@ -1218,6 +1218,28 @@ module.exports = function createFeatureRouter({ pool, requireCustomer, requireAd
     }catch(error){console.error("Security dashboard error:",error.message);res.status(500).json({error:"Security overview is temporarily unavailable."});}
   });
 
+
+  // MULTI-CURRENCY DISPLAY RATES: manually maintained estimates, never used for checkout.
+  router.get("/currency-rates", async(req,res)=>{
+    try{const r=await pool.query("SELECT setting_key,setting_value FROM store_settings WHERE setting_key LIKE 'fx_%'");
+      const rates={GHS:1};r.rows.forEach(x=>{const code=x.setting_key.slice(3);const value=Number(x.setting_value);if(/^[A-Z]{3}$/.test(code)&&Number.isFinite(value)&&value>0)rates[code]=value;});
+      res.json({base:"GHS",rates,updatedAt:r.rows[0]?.updated_at||null,displayOnly:true});
+    }catch(error){res.status(500).json({error:"Unable to load currency rates."});}
+  });
+  router.patch("/admin/currency-rates", requireAdmin, async(req,res)=>{
+    try{const rates=req.body?.rates;if(!rates||typeof rates!=="object")return res.status(400).json({error:"Provide currency rates."});
+      const allowed=["USD","GBP","EUR"];for(const code of allowed){const value=Number(rates[code]);if(!Number.isFinite(value)||value<=0||value>100)return res.status(400).json({error:"Enter valid GHS-to-"+code+" display rates."});}
+      for(const code of allowed)await pool.query(`INSERT INTO store_settings(setting_key,setting_value) VALUES($1,$2)
+        ON CONFLICT(setting_key) DO UPDATE SET setting_value=EXCLUDED.setting_value,updated_at=NOW()`,["fx_"+code,String(Number(rates[code]))]);
+      await logAdminActivity(req,"Currency display rates updated","USD, GBP and EUR display rates changed");
+      res.json({success:true});
+    }catch(error){res.status(500).json({error:"Unable to save currency rates."});}
+  });
+  router.get("/admin/currency-rates", requireAdmin, async(req,res)=>{
+    try{const r=await pool.query("SELECT setting_key,setting_value FROM store_settings WHERE setting_key LIKE 'fx_%'");const rates={};r.rows.forEach(x=>rates[x.setting_key.slice(3)]=Number(x.setting_value));res.json({rates});}
+    catch(error){res.status(500).json({error:"Unable to load currency rates."});}
+  });
+
   return router;
 };
 

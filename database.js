@@ -334,6 +334,53 @@ async function initializeDatabase() {
       ON customer_notifications(customer_id, created_at DESC);
   `);
 
+
+  // Store improvements: bundles, cancellations, stock alerts, questions and settings.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS store_settings (
+      setting_key VARCHAR(80) PRIMARY KEY,
+      setting_value TEXT NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    INSERT INTO store_settings(setting_key,setting_value)
+      VALUES('maintenance_mode','false') ON CONFLICT(setting_key) DO NOTHING;
+    CREATE TABLE IF NOT EXISTS order_cancellation_requests (
+      id BIGSERIAL PRIMARY KEY,
+      order_reference VARCHAR(100) NOT NULL UNIQUE REFERENCES orders(reference) ON DELETE CASCADE,
+      customer_id BIGINT REFERENCES customers(id) ON DELETE SET NULL,
+      customer_email VARCHAR(255) NOT NULL,
+      reason VARCHAR(1000) NOT NULL,
+      status VARCHAR(20) NOT NULL DEFAULT 'PENDING'
+        CHECK(status IN ('PENDING','APPROVED','DECLINED')),
+      admin_note VARCHAR(1000) NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS cancellation_status_created_idx
+      ON order_cancellation_requests(status,created_at DESC);
+    CREATE TABLE IF NOT EXISTS product_stock_subscribers (
+      id BIGSERIAL PRIMARY KEY,
+      product_name VARCHAR(100) NOT NULL,
+      email VARCHAR(255) NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(product_name, email)
+    );
+    CREATE TABLE IF NOT EXISTS product_questions (
+      id BIGSERIAL PRIMARY KEY,
+      product_name VARCHAR(100) NOT NULL,
+      customer_name VARCHAR(100) NOT NULL,
+      customer_email VARCHAR(255) NOT NULL,
+      question VARCHAR(1500) NOT NULL,
+      answer VARCHAR(2000) NOT NULL DEFAULT '',
+      status VARCHAR(20) NOT NULL DEFAULT 'PENDING'
+        CHECK(status IN ('PENDING','ANSWERED','REJECTED')),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      answered_at TIMESTAMPTZ
+    );
+    CREATE INDEX IF NOT EXISTS product_questions_status_idx
+      ON product_questions(status,created_at DESC);
+  `);
+
   console.log("BHADEX PLUGS database initialized.");
 }
 

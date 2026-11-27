@@ -1140,6 +1140,7 @@ module.exports = function createFeatureRouter({ pool, requireCustomer, requireAd
   router.post("/stock-alerts", async(req,res)=>{
     try{
       const product=clean(req.body?.product,100),email=clean(req.body?.email,255).toLowerCase();
+      if(req.body?.consent!==true)return res.status(400).json({error:"Please confirm that you want one availability email."});
       if(!product||!validEmail(email))return res.status(400).json({error:"Enter a product and valid email address."});
       const known=await pool.query(`SELECT p.name,i.is_available FROM store_products p
         JOIN product_inventory i ON i.product_name=p.name WHERE p.name=$1 AND p.active=TRUE LIMIT 1`,[product]);

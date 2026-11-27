@@ -832,7 +832,7 @@ function openProductModal(product) {
   ).join("");
 
   const packages = product.prices.map((price, index) =>
-    `<option value="${index}">${packageNames[index]} - GH₵${price}</option>`
+    `<option value="${index}" data-ghs="${price}">${packageNames[index]} - GH₵${price}</option>`
   ).join("");
 
   content.innerHTML = `
@@ -1567,6 +1567,8 @@ initializeSubscriptionCompare();
 initializePersonalizedRecommendations();
 loadProductAvailability();
 loadPublicReviews();
+initializeBhadexCurrency();
+initializeProductQuestions();
 
 // OPEN A PREVIOUSLY PURCHASED PRODUCT FOR REORDERING
 (function handleReorderLink() {
@@ -1596,3 +1598,61 @@ loadPublicReviews();
   // Remove the reorder parameters so refreshing does not reopen the dialog.
   window.history.replaceState({}, document.title, window.location.pathname);
 })();
+
+
+/* BHADEX PLUGS STORE IMPROVEMENTS */
+let bhadexCurrencyRates={GHS:1},bhadexSelectedCurrency="GHS";
+function bhadexMoney(ghs){
+  const rate=Number(bhadexCurrencyRates[bhadexSelectedCurrency]||1);
+  const symbols={GHS:"GH₵",USD:"$",GBP:"£",EUR:"€"};
+  return symbols[bhadexSelectedCurrency]+(Number(ghs)*rate).toFixed(2);
+}
+async function initializeBhadexCurrency(){
+  const select=document.getElementById("displayCurrency"),message=document.getElementById("currencyRateMessage");
+  if(!select)return;
+  try{
+    const response=await fetch("/api/features/currency-rates"),data=await response.json();
+    if(!response.ok)throw new Error(data.error||"Rates unavailable.");
+    bhadexCurrencyRates=data.rates||{GHS:1};
+    Array.from(select.options).forEach(option=>{option.disabled=option.value!=="GHS"&&!Number(bhadexCurrencyRates[option.value]);});
+    select.addEventListener("change",()=>{bhadexSelectedCurrency=select.value;refreshBhadexCurrencyLabels();});
+    bhadexSelectedCurrency=select.value="GHS";
+    message.textContent="Display estimates only. Checkout is always charged in GHS.";
+    refreshBhadexCurrencyLabels();
+  }catch(error){message.textContent="Only GHS display is available until the store configures exchange rates.";}
+}
+function refreshBhadexCurrencyLabels(){
+  document.querySelectorAll(".package-select option[data-ghs]").forEach(option=>{
+    const price=Number(option.dataset.ghs);option.textContent=packageNames[Number(option.value)]+" - "+bhadexMoney(price);
+  });
+}
+function initializeProductQuestions(){
+  const productSelect=document.getElementById("questionProduct"),stockSelect=document.getElementById("stockAlertProduct");
+  if(!productSelect||!stockSelect)return;
+  productSelect.replaceChildren();stockSelect.replaceChildren();
+  products.forEach(p=>{const o=document.createElement("option");o.value=p.name;o.textContent=p.name;productSelect.appendChild(o);});
+  const unavailable=products.filter(p=>productAvailability[p.name]===false);
+  if(!unavailable.length){const o=document.createElement("option");o.value="";o.textContent="No unavailable products right now";o.disabled=true;stockSelect.appendChild(o);}
+  unavailable.forEach(p=>{const o=document.createElement("option");o.value=p.name;o.textContent=p.name;stockSelect.appendChild(o);});
+  loadPublicProductQuestions();
+}
+async function loadPublicProductQuestions(){
+  const box=document.getElementById("publicQuestionsList");if(!box)return;box.replaceChildren();
+  try{const response=await fetch("/api/features/questions"),data=await response.json();if(!response.ok)throw new Error(data.error||"Questions unavailable.");
+    const items=data.questions||[];if(!items.length){box.textContent="No approved answers yet.";return;}
+    items.forEach(item=>{const card=document.createElement("article");card.className="bundle-card";const title=document.createElement("strong");title.textContent=item.product_name+" · "+item.customer_name;const question=document.createElement("p");question.textContent="Q: "+item.question;const answer=document.createElement("p");answer.textContent="A: "+item.answer;card.append(title,question,answer);box.appendChild(card);});
+  }catch(e){box.textContent=e.message;}
+}
+const productQuestionForm=document.getElementById("productQuestionForm");
+if(productQuestionForm)productQuestionForm.addEventListener("submit",async event=>{
+  event.preventDefault();const button=productQuestionForm.querySelector("button");button.disabled=true;
+  try{const response=await fetch("/api/features/questions",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:document.getElementById("questionName").value,email:document.getElementById("questionEmail").value,product:document.getElementById("questionProduct").value,question:document.getElementById("questionText").value})});const data=await response.json();if(!response.ok)throw new Error(data.error||"Unable to submit.");document.getElementById("questionSubmitMessage").textContent=data.message;productQuestionForm.reset();}
+  catch(e){document.getElementById("questionSubmitMessage").textContent=e.message;}finally{button.disabled=false;}
+});
+const stockAlertForm=document.getElementById("stockAlertForm");
+if(stockAlertForm)stockAlertForm.addEventListener("submit",async event=>{
+  event.preventDefault();const button=stockAlertForm.querySelector("button");button.disabled=true;
+  try{const response=await fetch("/api/features/stock-alerts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({product:document.getElementById("stockAlertProduct").value,email:document.getElementById("stockAlertEmail").value})});const data=await response.json();if(!response.ok)throw new Error(data.error||"Unable to register.");document.getElementById("stockAlertMessage").textContent=data.message;stockAlertForm.reset();}
+  catch(e){document.getElementById("stockAlertMessage").textContent=e.message;}finally{button.disabled=false;}
+});
+

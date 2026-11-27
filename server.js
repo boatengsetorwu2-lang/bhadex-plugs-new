@@ -591,6 +591,23 @@ app.use(helmet({
   contentSecurityPolicy: false
 }));
 
+
+// STOREFRONT MAINTENANCE GATE. Admin access and APIs remain available.
+app.use(async (req, res, next) => {
+  const pageRequest = req.method === "GET" &&
+    (req.path === "/" || req.path.endsWith(".html"));
+  if (!pageRequest || ["/admin.html","/maintenance.html"].includes(req.path)) return next();
+  try {
+    const setting = await pool.query("SELECT setting_value FROM store_settings WHERE setting_key='maintenance_mode'");
+    if (setting.rows[0]?.setting_value === "true") {
+      return res.status(503).sendFile(path.join(__dirname, "public", "maintenance.html"));
+    }
+  } catch (error) {
+    console.error("Maintenance gate check failed:", error.message);
+  }
+  next();
+});
+
 app.use(express.static(path.join(__dirname, "public"), {
   maxAge: "1h",
   etag: true,

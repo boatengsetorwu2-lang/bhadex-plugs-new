@@ -1711,6 +1711,11 @@ app.patch("/api/admin/inventory/:productName", requireAdmin, async (req, res) =>
     }
 
     const availability = hasAvailability ? req.body.isAvailable : null;
+    const previousInventory = await pool.query(
+      "SELECT is_available FROM product_inventory WHERE product_name=$1 LIMIT 1",
+      [productName]
+    );
+    const wasUnavailable = previousInventory.rows.length > 0 && previousInventory.rows[0].is_available === false;
     const result = await pool.query(
       `UPDATE product_inventory
        SET is_available = COALESCE($1::boolean, is_available),
@@ -1723,6 +1728,26 @@ app.patch("/api/admin/inventory/:productName", requireAdmin, async (req, res) =>
     );
     if (!result.rows.length) return res.status(404).json({ error: "Inventory product not found." });
     const row = result.rows[0];
+    if (hasAvailability && wasUnavailable && row.is_available === true) {
+      const subscribers = await pool.query(
+        "SELECT id,email FROM product_stock_subscribers WHERE product_name=$1",
+        [productName]
+      );
+      for (const subscriber of subscribers.rows) {
+        try {
+          if (!process.env.RESEND_API_KEY || !process.env.RESEND_FROM_EMAIL) break;
+          await axios.post("https://api.resend.com/emails", {
+            from: process.env.RESEND_FROM_EMAIL,
+            to: [subscriber.email],
+            subject: "A BHADEX PLUGS product is available",
+            html: `<div style="font-family:Arial,sans-serif;padding:24px"><h2>BHADEX PLUGS</h2><p>${productName.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))} is now listed as available.</p><p><a href="${BASE_URL}/marketplace.html">Visit the marketplace</a></p><p>Contact store support if you no longer want these notices.</p></div>`
+          }, { headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" } });
+          await pool.query("DELETE FROM product_stock_subscribers WHERE id=$1",[subscriber.id]);
+        } catch(emailError) {
+          console.error("Back-in-stock notification error:",emailError.response?.data || emailError.message);
+        }
+      }
+    }
     return res.json({
       success: true,
       product: {

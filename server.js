@@ -1942,6 +1942,37 @@ app.patch(
 
       if (oldStatus !== fulfillmentStatus) {
         try {
+          const customer = await pool.query(
+            "SELECT id FROM customers WHERE LOWER(email) = LOWER($1) LIMIT 1",
+            [previousOrder.rows[0].customer_email]
+          );
+          if (customer.rows.length) {
+            const labels = {
+              PENDING: "Pending",
+              PROCESSING: "Processing",
+              DELIVERED: "Delivered",
+              CANCELLED: "Cancelled"
+            };
+            const nextLabel = labels[fulfillmentStatus] || fulfillmentStatus;
+            await pool.query(
+              `INSERT INTO customer_notifications
+                 (customer_id, title, message, notification_type, reference)
+               VALUES($1, $2, $3, 'ORDER_UPDATE', $4)`,
+              [
+                customer.rows[0].id,
+                "Order status updated",
+                previousOrder.rows[0].product + " (" + previousOrder.rows[0].package_name + ") is now " + nextLabel + ".",
+                reference
+              ]
+            );
+          }
+        } catch (notificationError) {
+          console.error("Customer notification creation error:", notificationError.message);
+        }
+      }
+
+      if (oldStatus !== fulfillmentStatus) {
+        try {
           await pool.query(
             "INSERT INTO admin_activity_log(actor, action, details) VALUES($1, $2, $3)",
             ["Admin", "Order delivery status changed", reference + " · " + oldStatus + " → " + fulfillmentStatus]

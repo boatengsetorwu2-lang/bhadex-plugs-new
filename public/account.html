@@ -449,6 +449,12 @@ body{background:var(--account-bg);color:#f7f7f7}
   .dashboard-nav a{font-size:11px;padding:9px 10px}
 }
 
+
+/* ACCESSIBILITY POLISH — ACCOUNT CENTRE */
+:where(a,button,input,select,textarea,[tabindex]):focus-visible{outline:3px solid #ff7180;outline-offset:3px}
+:where(input,select,textarea)::placeholder{color:#b8b8b8;opacity:1}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+
 </style>
 </head>
 

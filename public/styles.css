@@ -1089,3 +1089,26 @@ body { max-width:100%; overflow-x:hidden; }
   .hero h1 { font-size:clamp(36px,12vw,48px); }
   .trust-row { gap:10px; }
 }
+
+
+/* ACCESSIBILITY POLISH — KEYBOARD, CONTRAST AND TOUCH */
+:where(a,button,input,select,textarea,[tabindex]):focus-visible {
+  outline: 3px solid #ff7180;
+  outline-offset: 3px;
+}
+:where(button,a,input,select,textarea) {
+  -webkit-tap-highlight-color: rgba(255,38,61,.18);
+}
+:where(input,select,textarea)::placeholder {
+  color: #b8b8b8;
+  opacity: 1;
+}
+:where(.product-note,.footer-note) { color: #b0b0b0; }
+@media (prefers-reduced-motion: reduce) {
+  *,*::before,*::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}

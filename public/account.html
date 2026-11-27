@@ -534,6 +534,7 @@ body {
     <a href="#notifications">Notifications <span id="notificationBadge" class="notification-badge hidden">0</span></a>
     <a href="#track">Track Order</a>
     <a href="#orders">My Orders</a>
+    <a href="#invoices">Invoices</a>
     <a href="#rewards">Loyalty Rewards</a>
     <a href="#referrals">Refer a Friend</a>
     <a href="#wishlist">Wishlist</a>
@@ -702,6 +703,14 @@ body {
     <div id="ordersList">
       <p class="muted">Loading your orders...</p>
     </div>
+  </section>
+
+
+  <section class="dashboard-card" id="invoices">
+    <h2>Invoice Centre</h2>
+    <p class="muted">View and print a receipt for orders in your account. Use your browser's print option to save a PDF copy.</p>
+    <p class="muted">These are store order receipts, not tax invoices.</p>
+    <div id="invoiceList"><p class="muted">Your order receipts will appear here.</p></div>
   </section>
 
   <!-- ACCOUNT SETTINGS -->
@@ -981,6 +990,73 @@ async function loadAccount() {
   }
 }
 
+
+function displayInvoices() {
+  const container = document.getElementById("invoiceList");
+  if (!container) return;
+  container.replaceChildren();
+  if (!customerOrders.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "Your receipts will appear here after an order is placed.";
+    container.appendChild(empty);
+    return;
+  }
+  customerOrders.forEach(order => {
+    const card = document.createElement("article");
+    card.className = "invoice-row";
+    const details = document.createElement("div");
+    const title = document.createElement("strong");
+    title.textContent = (order.product || "Subscription") + " · " + (order.package || "");
+    const reference = document.createElement("p");
+    reference.className = "reference";
+    reference.textContent = "Ref: " + (order.reference || "Unavailable");
+    const meta = document.createElement("p");
+    meta.className = "muted";
+    const date = order.created_at ? new Date(order.created_at).toLocaleDateString() : "Date unavailable";
+    meta.textContent = date + " · " + String(order.status || "UNKNOWN");
+    details.append(title, reference, meta);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "secondary-button";
+    button.textContent = "View / Print Receipt";
+    button.addEventListener("click", () => printOrderReceipt(order));
+    card.append(details, button);
+    container.appendChild(card);
+  });
+}
+
+function printOrderReceipt(order) {
+  const safe = value => String(value ?? "").replace(/[&<>"']/g, char => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  }[char]));
+  const receiptWindow = window.open("", "_blank", "width=760,height=800");
+  if (!receiptWindow) {
+    showMessage("message", "Your browser blocked the receipt window. Allow pop-ups for this site and try again.");
+    return;
+  }
+  const customerName = document.getElementById("profileName")?.value || "Customer";
+  const customerEmail = document.getElementById("profileEmail")?.value || "";
+  const amount = Number(order.amount || 0).toFixed(2);
+  const date = order.created_at ? new Date(order.created_at).toLocaleString() : "Not available";
+  const paid = String(order.status || "").toUpperCase() === "PAID";
+  receiptWindow.document.open();
+  receiptWindow.document.write(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Order receipt ${safe(order.reference)}</title>
+    <style>body{font-family:Arial,sans-serif;color:#171717;margin:0;padding:36px;background:#f4f4f5}.receipt{max-width:680px;margin:auto;background:#fff;padding:38px;border:1px solid #ddd;border-radius:12px}.brand{font-size:24px;font-weight:900;letter-spacing:1px}.brand span{color:#e21d38}.muted{color:#666}.line{display:flex;justify-content:space-between;gap:20px;padding:13px 0;border-bottom:1px solid #eee}.total{font-size:21px;font-weight:800}.stamp{display:inline-block;padding:7px 12px;border:1px solid ${paid ? "#16834a" : "#b7791f"};color:${paid ? "#16834a" : "#946200"};border-radius:20px;font-weight:700}.actions{margin-top:25px}.actions button{padding:12px 18px;background:#e21d38;color:white;border:0;border-radius:8px;font-weight:700;cursor:pointer}.fine{margin-top:30px;padding-top:15px;border-top:1px solid #eee;font-size:12px;color:#777}@media print{body{background:white;padding:0}.receipt{border:0;border-radius:0;padding:10px}.actions{display:none}}</style></head><body><main class="receipt">
+    <div class="brand">BHADEX <span>PLUGS</span></div><p class="muted">DIGITAL ACCESS, ELEVATED</p><h1>Order receipt</h1><p class="stamp">${paid ? "PAYMENT PAID" : "PAYMENT " + safe(order.status || "UNKNOWN")}</p>
+    <div class="line"><span>Receipt reference</span><strong>${safe(order.reference)}</strong></div>
+    <div class="line"><span>Customer</span><strong>${safe(customerName)}</strong></div>
+    <div class="line"><span>Email</span><strong>${safe(customerEmail)}</strong></div>
+    <div class="line"><span>Order date</span><strong>${safe(date)}</strong></div>
+    <div class="line"><span>Product</span><strong>${safe(order.product)}</strong></div>
+    <div class="line"><span>Package</span><strong>${safe(order.package)}</strong></div>
+    <div class="line"><span>Delivery status</span><strong>${safe(order.fulfillment_status || "PENDING")}</strong></div>
+    <div class="line total"><span>Amount paid</span><strong>${safe(order.currency || "GHS")} ${safe(amount)}</strong></div>
+    <p class="fine">This receipt records the order information held by BHADEX PLUGS. It is not a tax invoice. Keep your reference for order support and tracking.</p>
+    <div class="actions"><button onclick="window.print()">Print / Save as PDF</button></div></main></body></html>`);
+  receiptWindow.document.close();
+}
+
 // LOAD CUSTOMER ORDERS
 async function loadOrders() {
   try {
@@ -989,6 +1065,7 @@ async function loadOrders() {
 
     updateStatistics();
     displayOrders();
+    displayInvoices();
 
   } catch (error) {
     ordersList.textContent = error.message;

@@ -1141,9 +1141,10 @@ module.exports = function createFeatureRouter({ pool, requireCustomer, requireAd
     try{
       const product=clean(req.body?.product,100),email=clean(req.body?.email,255).toLowerCase();
       if(!product||!validEmail(email))return res.status(400).json({error:"Enter a product and valid email address."});
-      const known=await pool.query("SELECT name,availability FROM store_products WHERE name=$1 AND active=TRUE LIMIT 1",[product]);
+      const known=await pool.query(`SELECT p.name,i.is_available FROM store_products p
+        JOIN product_inventory i ON i.product_name=p.name WHERE p.name=$1 AND p.active=TRUE LIMIT 1`,[product]);
       if(!known.rows.length)return res.status(404).json({error:"Product not found."});
-      if(known.rows[0].availability!=="UNAVAILABLE")return res.status(400).json({error:"This product is currently listed as available."});
+      if(known.rows[0].is_available!==false)return res.status(400).json({error:"This product is currently listed as available."});
       await pool.query("INSERT INTO product_stock_subscribers(product_name,email) VALUES($1,$2) ON CONFLICT DO NOTHING",[product,email]);
       res.status(201).json({success:true,message:"We'll notify this email if availability changes. You can ask support to remove it."});
     }catch(error){console.error("Stock alert signup error:",error.message);res.status(500).json({error:"Unable to save your alert."});}
@@ -1205,13 +1206,48 @@ module.exports = function createFeatureRouter({ pool, requireCustomer, requireAd
     const refs=Array.isArray(req.body?.references)?[...new Set(req.body.references.map(x=>clean(x,100)).filter(Boolean))].slice(0,50):[];
     const status=clean(req.body?.fulfillmentStatus,30).toUpperCase();
     if(!refs.length||!["PENDING","PROCESSING","DELIVERED","CANCELLED"].includes(status))return res.status(400).json({error:"Select up to 50 orders and a valid delivery status."});
+    const client=await pool.connect();
     try{
-      const result=await pool.query(`UPDATE orders SET fulfillment_status=$1,fulfillment_updated_at=NOW(),
-        delivered_at=CASE WHEN $1='DELIVERED' THEN NOW() ELSE delivered_at END,updated_at=NOW()
-        WHERE reference=ANY($2::text[]) AND status='PAID' RETURNING reference`,[status,refs]);
-      await logAdminActivity(req,"Bulk order status update",result.rows.length+" orders · "+status);
-      res.json({success:true,updated:result.rows.map(x=>x.reference),count:result.rowCount});
-    }catch(error){console.error("Bulk order update error:",error.message);res.status(500).json({error:"Unable to update selected orders."});}
+      await client.query("BEGIN");
+      const previous=await client.query(`SELECT reference,customer_email,product,package,amount,fulfillment_status
+        FROM orders WHERE reference=ANY($1::text[]) AND status='PAID' FOR UPDATE`,[refs]);
+      const updated=[];
+      for(const order of previous.rows){
+        if(order.fulfillment_status===status)continue;
+        await client.query(`UPDATE orders SET fulfillment_status=$1,
+          delivered_at=CASE WHEN $1='DELIVERED' THEN COALESCE(delivered_at,NOW()) ELSE delivered_at END,
+          fulfillment_updated_at=NOW(),updated_at=NOW() WHERE reference=$2`,[status,order.reference]);
+        updated.push(order.reference);
+        const customer=await client.query("SELECT id FROM customers WHERE LOWER(email)=LOWER($1) LIMIT 1",[order.customer_email]);
+        if(customer.rows.length){
+          const customerId=customer.rows[0].id;
+          await client.query(`INSERT INTO customer_notifications(customer_id,title,message,notification_type,reference)
+            VALUES($1,'Order status updated',$2,'ORDER_UPDATE',$3)`,
+            [customerId,order.product+" ("+order.package+") is now "+status.toLowerCase()+".",order.reference]);
+          if(status==="DELIVERED"){
+            await client.query(`INSERT INTO loyalty_ledger(customer_id,order_reference,points)
+              VALUES($1,$2,$3) ON CONFLICT(order_reference) DO NOTHING`,
+              [customerId,order.reference,Math.max(1,Math.floor(Number(order.amount)))]);
+            const referral=await client.query(`SELECT id,referrer_customer_id,referred_customer_id
+              FROM customer_referrals WHERE referred_customer_id=$1 AND status='PENDING' FOR UPDATE`,[customerId]);
+            if(referral.rows.length){
+              const rr=referral.rows[0];
+              await client.query(`INSERT INTO loyalty_ledger(customer_id,order_reference,points)
+                VALUES($1,$2,100),($3,$4,100) ON CONFLICT(order_reference) DO NOTHING`,
+                [rr.referrer_customer_id,"REF-"+rr.id+"-INVITER",rr.referred_customer_id,"REF-"+rr.id+"-NEW"]);
+              await client.query("UPDATE customer_referrals SET status='REWARDED',points_awarded=100,rewarded_at=NOW() WHERE id=$1",[rr.id]);
+            }
+          }
+        }
+      }
+      await client.query("COMMIT");
+      await logAdminActivity(req,"Bulk order status update",updated.length+" orders · "+status);
+      res.json({success:true,updated,count:updated.length});
+    }catch(error){
+      await client.query("ROLLBACK");
+      console.error("Bulk order update error:",error.message);
+      res.status(500).json({error:"Unable to update selected orders."});
+    }finally{client.release();}
   });
 
   // CSV-ready reporting endpoint.

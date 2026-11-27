@@ -1322,3 +1322,5 @@ footer { border-color:rgba(255,255,255,.12) !important; }
 .feature-inline{display:flex;gap:8px;flex-wrap:wrap}.feature-inline>*{flex:1;min-width:130px}
 #storeOperationsPanel h3{margin:22px 0 10px}
 @media(max-width:600px){.bundle-grid{grid-template-columns:1fr}.feature-tool-grid{grid-template-columns:1fr}}
+
+.stock-consent{display:flex;align-items:flex-start;gap:9px;color:#bbb;font-size:12px;line-height:1.5}.stock-consent input{width:17px;height:17px;flex:0 0 auto;accent-color:#ff263d}

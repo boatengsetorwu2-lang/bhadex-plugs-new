@@ -1064,6 +1064,160 @@ module.exports = function createFeatureRouter({ pool, requireCustomer, requireAd
     }
   });
 
+
+  // SUBSCRIPTION BUNDLES: informational offers only; checkout remains product-by-product.
+  router.get("/bundles", async (req, res) => {
+    res.json({ bundles: [
+      { id:"creator", name:"Creator Bundle", products:["Canva Pro","ChatGPT Plus"], description:"Creative design and AI productivity tools.", note:"Each subscription is ordered separately." },
+      { id:"entertainment", name:"Entertainment Bundle", products:["Netflix","Spotify Premium"], description:"Video streaming and music in one collection.", note:"Availability and package terms apply separately." },
+      { id:"complete", name:"Digital Essentials", products:["YouTube Premium","Google One","Microsoft 365"], description:"Media, cloud storage and productivity essentials.", note:"Each subscription is ordered separately." }
+    ]});
+  });
+
+  // CUSTOMER ORDER CANCELLATION REQUESTS. This never cancels or refunds a payment automatically.
+  router.get("/customer/cancellations", requireCustomer, async (req,res) => {
+    try {
+      const c=await customerEmail(req);
+      const result=await pool.query(`SELECT r.id,r.order_reference,r.reason,r.status,r.admin_note,r.created_at,r.updated_at
+        FROM order_cancellation_requests r WHERE r.customer_id=$1 ORDER BY r.created_at DESC LIMIT 100`,[c.id]);
+      res.json({requests:result.rows});
+    } catch(error){ console.error("Cancellation list error:",error.message); res.status(500).json({error:"Unable to load cancellation requests."}); }
+  });
+  router.post("/customer/cancellations", requireCustomer, async (req,res) => {
+    try {
+      const c=await customerEmail(req), reference=clean(req.body?.reference,100), reason=clean(req.body?.reason,1000);
+      if(!reference || reason.length<10) return res.status(400).json({error:"Enter an order reference and a reason of at least 10 characters."});
+      const order=await pool.query(`SELECT reference,fulfillment_status FROM orders
+        WHERE reference=$1 AND status='PAID' AND LOWER(customer_email)=LOWER($2) LIMIT 1`,[reference,c.email]);
+      if(!order.rows.length) return res.status(404).json({error:"We could not find a paid order matching your account."});
+      if(order.rows[0].fulfillment_status==='DELIVERED' || order.rows[0].fulfillment_status==='CANCELLED')
+        return res.status(400).json({error:"This order is no longer eligible for a cancellation request."});
+      const saved=await pool.query(`INSERT INTO order_cancellation_requests(order_reference,customer_id,customer_email,reason)
+        VALUES($1,$2,$3,$4) ON CONFLICT(order_reference) DO NOTHING RETURNING id,status`,[reference,c.id,c.email,reason]);
+      if(!saved.rows.length) return res.status(409).json({error:"A cancellation request already exists for this order."});
+      res.status(201).json({request:saved.rows[0],message:"Request submitted for review. Your order has not been cancelled."});
+    } catch(error){console.error("Cancellation request error:",error.message);res.status(500).json({error:"Unable to submit your request."});}
+  });
+
+  // ADMIN CANCELLATION QUEUE
+  router.get("/admin/cancellations", requireAdmin, async(req,res)=>{
+    try{const r=await pool.query(`SELECT c.*,o.product,o.package,o.fulfillment_status
+      FROM order_cancellation_requests c JOIN orders o ON o.reference=c.order_reference
+      ORDER BY c.created_at DESC LIMIT 300`);res.json({requests:r.rows});}
+    catch(error){console.error("Admin cancellation error:",error.message);res.status(500).json({error:"Unable to load requests."});}
+  });
+  router.patch("/admin/cancellations/:id", requireAdmin, async(req,res)=>{
+    try{
+      const status=clean(req.body?.status,20).toUpperCase(), note=clean(req.body?.note,1000), id=Number(req.params.id);
+      if(!Number.isSafeInteger(id)||id<1||!["APPROVED","DECLINED"].includes(status)) return res.status(400).json({error:"Invalid request update."});
+      const r=await pool.query(`UPDATE order_cancellation_requests SET status=$1,admin_note=$2,updated_at=NOW()
+        WHERE id=$3 AND status='PENDING' RETURNING order_reference`,[status,note,id]);
+      if(!r.rows.length)return res.status(404).json({error:"Pending request not found."});
+      await logAdminActivity(req,"Cancellation request reviewed",r.rows[0].order_reference+" · "+status);
+      res.json({success:true,message:"Request reviewed. Any actual order/refund decision must be handled separately."});
+    }catch(error){console.error("Cancellation update error:",error.message);res.status(500).json({error:"Unable to update request."});}
+  });
+
+  // BACK-IN-STOCK ALERT SIGNUPS
+  router.post("/stock-alerts", async(req,res)=>{
+    try{
+      const product=clean(req.body?.product,100),email=clean(req.body?.email,255).toLowerCase();
+      if(!product||!validEmail(email))return res.status(400).json({error:"Enter a product and valid email address."});
+      const known=await pool.query("SELECT name,availability FROM store_products WHERE name=$1 AND active=TRUE LIMIT 1",[product]);
+      if(!known.rows.length)return res.status(404).json({error:"Product not found."});
+      if(known.rows[0].availability!=="UNAVAILABLE")return res.status(400).json({error:"This product is currently listed as available."});
+      await pool.query("INSERT INTO product_stock_subscribers(product_name,email) VALUES($1,$2) ON CONFLICT DO NOTHING",[product,email]);
+      res.status(201).json({success:true,message:"We'll notify this email if availability changes. You can ask support to remove it."});
+    }catch(error){console.error("Stock alert signup error:",error.message);res.status(500).json({error:"Unable to save your alert."});}
+  });
+  router.get("/admin/stock-alerts", requireAdmin, async(req,res)=>{
+    try{const r=await pool.query("SELECT id,product_name,email,created_at FROM product_stock_subscribers ORDER BY created_at DESC LIMIT 500");res.json({alerts:r.rows});}
+    catch(error){res.status(500).json({error:"Unable to load stock alerts."});}
+  });
+
+  // PRODUCT QUESTIONS: public submission, admin moderation and answers.
+  router.get("/questions", async(req,res)=>{
+    try{const product=clean(req.query.product,100);const r=await pool.query(`SELECT id,product_name,customer_name,question,answer,answered_at
+      FROM product_questions WHERE status='ANSWERED' AND ($1='' OR product_name=$1)
+      ORDER BY answered_at DESC LIMIT 100`,[product]);res.json({questions:r.rows});}
+    catch(error){res.status(500).json({error:"Unable to load product questions."});}
+  });
+  router.post("/questions", async(req,res)=>{
+    try{
+      const product=clean(req.body?.product,100),name=clean(req.body?.name,100),email=clean(req.body?.email,255).toLowerCase(),question=clean(req.body?.question,1500);
+      if(!product||name.length<2||!validEmail(email)||question.length<10)return res.status(400).json({error:"Enter your name, valid email and a question of at least 10 characters."});
+      const exists=await pool.query("SELECT 1 FROM store_products WHERE name=$1 AND active=TRUE",[product]);if(!exists.rows.length)return res.status(404).json({error:"Product not found."});
+      await pool.query("INSERT INTO product_questions(product_name,customer_name,customer_email,question) VALUES($1,$2,$3,$4)",[product,name,email,question]);
+      res.status(201).json({success:true,message:"Question submitted for review. It will appear publicly only after an approved answer."});
+    }catch(error){console.error("Question submit error:",error.message);res.status(500).json({error:"Unable to submit your question."});}
+  });
+  router.get("/admin/questions", requireAdmin, async(req,res)=>{
+    try{const r=await pool.query("SELECT * FROM product_questions ORDER BY created_at DESC LIMIT 300");res.json({questions:r.rows});}
+    catch(error){res.status(500).json({error:"Unable to load questions."});}
+  });
+  router.patch("/admin/questions/:id", requireAdmin, async(req,res)=>{
+    try{
+      const id=Number(req.params.id),status=clean(req.body?.status,20).toUpperCase(),answer=clean(req.body?.answer,2000);
+      if(!Number.isSafeInteger(id)||id<1||!["ANSWERED","REJECTED"].includes(status)||(status==="ANSWERED"&&answer.length<3))return res.status(400).json({error:"Provide a valid answer or rejection."});
+      const r=await pool.query("UPDATE product_questions SET status=$1,answer=$2,answered_at=CASE WHEN $1='ANSWERED' THEN NOW() ELSE NULL END WHERE id=$3 RETURNING product_name",[status,answer,id]);
+      if(!r.rows.length)return res.status(404).json({error:"Question not found."});
+      await logAdminActivity(req,"Product question moderated",r.rows[0].product_name+" · "+status);res.json({success:true});
+    }catch(error){res.status(500).json({error:"Unable to update question."});}
+  });
+
+  // MAINTENANCE SWITCH
+  router.get("/maintenance", async(req,res)=>{
+    try{const r=await pool.query("SELECT setting_value FROM store_settings WHERE setting_key='maintenance_mode'");res.json({maintenance:r.rows[0]?.setting_value==="true"});}
+    catch(error){res.status(500).json({error:"Unable to read store status."});}
+  });
+  router.get("/admin/maintenance", requireAdmin, async(req,res)=>{
+    try{const r=await pool.query("SELECT setting_value FROM store_settings WHERE setting_key='maintenance_mode'");res.json({maintenance:r.rows[0]?.setting_value==="true"});}
+    catch(error){res.status(500).json({error:"Unable to read maintenance status."});}
+  });
+  router.patch("/admin/maintenance", requireAdmin, async(req,res)=>{
+    try{if(typeof req.body?.maintenance!=="boolean")return res.status(400).json({error:"Choose an on/off value."});
+      await pool.query("UPDATE store_settings SET setting_value=$1,updated_at=NOW() WHERE setting_key='maintenance_mode'",[String(req.body.maintenance)]);
+      await logAdminActivity(req,"Maintenance mode changed",req.body.maintenance?"Enabled":"Disabled");
+      res.json({success:true,maintenance:req.body.maintenance});
+    }catch(error){res.status(500).json({error:"Unable to update maintenance mode."});}
+  });
+
+  // ADMIN BULK FULFILMENT: status changes only; never marks a payment as paid.
+  router.post("/admin/orders/bulk-status", requireAdmin, async(req,res)=>{
+    const refs=Array.isArray(req.body?.references)?[...new Set(req.body.references.map(x=>clean(x,100)).filter(Boolean))].slice(0,50):[];
+    const status=clean(req.body?.fulfillmentStatus,30).toUpperCase();
+    if(!refs.length||!["PENDING","PROCESSING","DELIVERED","CANCELLED"].includes(status))return res.status(400).json({error:"Select up to 50 orders and a valid delivery status."});
+    try{
+      const result=await pool.query(`UPDATE orders SET fulfillment_status=$1,fulfillment_updated_at=NOW(),
+        delivered_at=CASE WHEN $1='DELIVERED' THEN NOW() ELSE delivered_at END,updated_at=NOW()
+        WHERE reference=ANY($2::text[]) AND status='PAID' RETURNING reference`,[status,refs]);
+      await logAdminActivity(req,"Bulk order status update",result.rows.length+" orders · "+status);
+      res.json({success:true,updated:result.rows.map(x=>x.reference),count:result.rowCount});
+    }catch(error){console.error("Bulk order update error:",error.message);res.status(500).json({error:"Unable to update selected orders."});}
+  });
+
+  // CSV-ready reporting endpoint.
+  router.get("/admin/reports", requireAdmin, async(req,res)=>{
+    try{
+      const from=clean(req.query.from,10),to=clean(req.query.to,10);
+      const r=await pool.query(`SELECT reference,customer_email,product,package,amount,currency,status,fulfillment_status,created_at,delivered_at
+        FROM orders WHERE ($1='' OR created_at::date >= $1::date) AND ($2='' OR created_at::date <= $2::date)
+        ORDER BY created_at DESC LIMIT 5000`,[from,to]);
+      res.json({orders:r.rows});
+    }catch(error){res.status(500).json({error:"Unable to generate report."});}
+  });
+
+  // Admin security overview: active session count and recent audit events, without exposing session IDs.
+  router.get("/admin/security", requireAdmin, async(req,res)=>{
+    try{
+      const [sessions,events]=await Promise.all([
+        pool.query("SELECT COUNT(*)::int AS active_sessions FROM admin_sessions WHERE expire > NOW()"),
+        pool.query("SELECT id,action,details,created_at FROM admin_activity_log ORDER BY created_at DESC LIMIT 50")
+      ]);
+      res.json({activeSessions:sessions.rows[0]?.active_sessions||0,events:events.rows});
+    }catch(error){console.error("Security dashboard error:",error.message);res.status(500).json({error:"Security overview is temporarily unavailable."});}
+  });
+
   return router;
 };
 

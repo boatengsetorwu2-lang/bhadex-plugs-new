@@ -925,6 +925,9 @@
             <div class="feature-inline"><input id="reportFrom" type="date" aria-label="Report start date"><input id="reportTo" type="date" aria-label="Report end date"></div>
             <button type="button" class="secondary" id="exportOrdersCsv">Export Orders CSV</button><p id="reportMessage" class="message"></p>
           </div>
+          <div class="feature-tool"><h3>Currency Display Rates</h3><p class="muted">Set manual conversion estimates: how many units of each currency equal GH₵1.</p>
+            <div class="feature-inline"><input id="fxUSD" type="number" min="0.0001" step="0.0001" placeholder="USD per GHS"><input id="fxGBP" type="number" min="0.0001" step="0.0001" placeholder="GBP per GHS"><input id="fxEUR" type="number" min="0.0001" step="0.0001" placeholder="EUR per GHS"></div>
+            <button type="button" class="secondary" id="saveCurrencyRates">Save Display Rates</button><p id="currencyAdminMessage" class="message"></p></div>
           <div class="feature-tool">
             <h3>Security Overview</h3><p id="securitySummary" class="muted">Security information loads after login.</p>
             <div id="securityEvents" class="inventory-list"></div>
@@ -1437,6 +1440,19 @@
     }
     document.getElementById("refreshSecurity").addEventListener("click",loadSecurityOverview);
 
+    // CURRENCY RATE ADMIN
+
+    async function loadCurrencyRatesAdmin(){
+      try{const data=await request("/api/features/admin/currency-rates");document.getElementById("fxUSD").value=data.rates?.USD||"";document.getElementById("fxGBP").value=data.rates?.GBP||"";document.getElementById("fxEUR").value=data.rates?.EUR||"";}
+      catch(e){document.getElementById("currencyAdminMessage").textContent=e.message;}
+    }
+    document.getElementById("saveCurrencyRates").addEventListener("click",async()=>{
+      const message=document.getElementById("currencyAdminMessage");
+      try{const rates={USD:Number(document.getElementById("fxUSD").value),GBP:Number(document.getElementById("fxGBP").value),EUR:Number(document.getElementById("fxEUR").value)};
+        await request("/api/features/admin/currency-rates",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({rates})});
+        message.textContent="Display rates saved. Remember to review them regularly.";message.className="message success";
+      }catch(e){message.textContent=e.message;message.className="message";}
+    });
     // LOGIN
     loginForm.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -1477,6 +1493,7 @@
         await loadAdminSupport();
         await loadAdminChat();
         await loadStoreOperations();
+        await loadCurrencyRatesAdmin();
         startOrderPolling();
 
       } catch (error) {

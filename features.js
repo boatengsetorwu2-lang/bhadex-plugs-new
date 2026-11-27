@@ -1219,7 +1219,7 @@ module.exports = function createFeatureRouter({ pool, requireCustomer, requireAd
     try{
       const from=clean(req.query.from,10),to=clean(req.query.to,10);
       const r=await pool.query(`SELECT reference,customer_email,product,package,amount,currency,status,fulfillment_status,created_at,delivered_at
-        FROM orders WHERE ($1='' OR created_at::date >= $1::date) AND ($2='' OR created_at::date <= $2::date)
+        FROM orders WHERE (NULLIF($1,'') IS NULL OR created_at::date >= NULLIF($1,'')::date) AND (NULLIF($2,'') IS NULL OR created_at::date <= NULLIF($2,'')::date)
         ORDER BY created_at DESC LIMIT 5000`,[from,to]);
       res.json({orders:r.rows});
     }catch(error){res.status(500).json({error:"Unable to generate report."});}

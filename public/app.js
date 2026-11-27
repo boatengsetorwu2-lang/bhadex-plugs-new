@@ -788,6 +788,8 @@ function clearRecentlyViewed() {
   try {
     localStorage.removeItem(RECENT_STORAGE_KEY);
     renderRecentlyViewed();
+    document.getElementById("personalizedRecommendations")?.remove();
+    initializePersonalizedRecommendations();
   } catch (error) {
     console.error("Could not clear recently viewed products:", error);
   }
@@ -1326,7 +1328,7 @@ function initializePersonalizedRecommendations() {
   section.innerHTML = `
     <div class="recommendations-heading">
       <div><p class="eyebrow">PICKED FROM YOUR BROWSING</p><h2>RECOMMENDED FOR YOU</h2>
-      <p>Suggestions based on products you've recently viewed on this device.</p></div>
+      <p id="recommendationsDescription">Suggestions based on products you've recently viewed on this device.</p></div>
     </div>
     <div id="recommendationsGrid" class="recommendations-grid"></div>
   `;
@@ -1339,6 +1341,10 @@ function initializePersonalizedRecommendations() {
   } catch (_) {}
   const viewed = recentNames.map(name => products.find(product => product.name === name)).filter(Boolean);
   const preferredCategory = viewed[0]?.category;
+  const description = section.querySelector("#recommendationsDescription");
+  if (description) description.textContent = viewed.length
+    ? "Suggestions based on your recent browsing on this device. Your browsing history stays in this browser."
+    : "A few products to explore. Recommendations will become more relevant as you browse.";
   let suggestions = preferredCategory
     ? products.filter(product => product.category === preferredCategory && !recentNames.includes(product.name))
     : products.filter(product => !recentNames.includes(product.name));

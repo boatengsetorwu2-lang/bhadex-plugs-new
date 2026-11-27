@@ -904,6 +904,38 @@
         </div>
       </section>
 
+
+      <!-- STORE OPERATIONS TOOLKIT -->
+      <section class="panel" id="storeOperationsPanel">
+        <h2>Store Operations Toolkit</h2>
+        <p class="muted">Manage cancellations, bulk delivery updates, reports, stock alerts, product questions, maintenance and security.</p>
+        <div class="feature-tool-grid">
+          <div class="feature-tool">
+            <h3>Maintenance Mode</h3><p id="maintenanceStatus" class="muted">Loading store status...</p>
+            <button type="button" class="secondary" id="maintenanceToggle">Toggle Maintenance Mode</button>
+          </div>
+          <div class="feature-tool">
+            <h3>Bulk Order Updates</h3><p class="muted">Enter paid order references, one per line (up to 50).</p>
+            <textarea id="bulkOrderRefs" rows="4" placeholder="Order reference&#10;Another reference"></textarea>
+            <select id="bulkOrderStatus"><option value="PROCESSING">Processing</option><option value="DELIVERED">Delivered</option><option value="PENDING">Pending</option><option value="CANCELLED">Cancelled</option></select>
+            <button type="button" class="secondary" id="bulkOrderApply">Update Selected References</button><p id="bulkOrderMessage" class="message"></p>
+          </div>
+          <div class="feature-tool">
+            <h3>Reports Export</h3><p class="muted">Download up to 5,000 order rows as CSV.</p>
+            <div class="feature-inline"><input id="reportFrom" type="date" aria-label="Report start date"><input id="reportTo" type="date" aria-label="Report end date"></div>
+            <button type="button" class="secondary" id="exportOrdersCsv">Export Orders CSV</button><p id="reportMessage" class="message"></p>
+          </div>
+          <div class="feature-tool">
+            <h3>Security Overview</h3><p id="securitySummary" class="muted">Security information loads after login.</p>
+            <div id="securityEvents" class="inventory-list"></div>
+            <button type="button" class="secondary" id="refreshSecurity">Refresh Security</button>
+          </div>
+        </div>
+        <h3>Cancellation Requests</h3><p id="cancellationAdminMessage" class="muted">Loading requests...</p><div id="adminCancellationList" class="inventory-list"></div>
+        <h3>Back-in-Stock Signups</h3><p id="stockAdminMessage" class="muted">Loading signups...</p><div id="adminStockList" class="inventory-list"></div>
+        <h3>Product Questions</h3><p id="questionsAdminMessage" class="muted">Loading questions...</p><div id="adminQuestionsList" class="inventory-list"></div>
+      </section>
+
       <!-- ORDER DETAILS MODAL -->
       <div
         id="orderDetailsModal"
@@ -1340,6 +1372,71 @@
       }
     }
 
+    // STORE OPERATIONS TOOLKIT JS
+
+    // STORE OPERATIONS TOOLKIT
+    async function loadStoreOperations() {
+      await Promise.all([loadMaintenance(),loadCancellationRequests(),loadStockAlerts(),loadProductQuestions(),loadSecurityOverview()]);
+    }
+    async function loadMaintenance() {
+      try {
+        const data=await request("/api/features/admin/maintenance");
+        const status=document.getElementById("maintenanceStatus");
+        status.textContent=data.maintenance?"MAINTENANCE ON — storefront pages are temporarily hidden.":"STORE OPEN — storefront is visible.";
+        status.style.color=data.maintenance?"#ff7180":"#56d98a";
+        document.getElementById("maintenanceToggle").textContent=data.maintenance?"Turn Maintenance Off":"Turn Maintenance On";
+      } catch(e){document.getElementById("maintenanceStatus").textContent=e.message;}
+    }
+    document.getElementById("maintenanceToggle").addEventListener("click",async()=>{
+      const status=document.getElementById("maintenanceStatus"),currentlyOn=status.textContent.includes("MAINTENANCE ON");
+      if(!confirm(currentlyOn?"Turn the storefront back on?":"Put the storefront into maintenance mode?"))return;
+      try{await request("/api/features/admin/maintenance",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({maintenance:!currentlyOn})});await loadMaintenance();}
+      catch(e){status.textContent=e.message;}
+    });
+    document.getElementById("bulkOrderApply").addEventListener("click",async()=>{
+      const message=document.getElementById("bulkOrderMessage"),references=document.getElementById("bulkOrderRefs").value.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+      if(!references.length||references.length>50){message.textContent="Enter between 1 and 50 references.";return;}
+      try{const r=await request("/api/features/admin/orders/bulk-status",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({references,fulfillmentStatus:document.getElementById("bulkOrderStatus").value})});message.textContent=r.count+" order(s) updated.";await loadOrders();}
+      catch(e){message.textContent=e.message;}
+    });
+    document.getElementById("exportOrdersCsv").addEventListener("click",async()=>{
+      const message=document.getElementById("reportMessage");message.textContent="Preparing report...";
+      try{
+        const params=new URLSearchParams();const from=document.getElementById("reportFrom").value,to=document.getElementById("reportTo").value;
+        if(from)params.set("from",from);if(to)params.set("to",to);
+        const data=await request("/api/features/admin/reports?"+params.toString());
+        const rows=data.orders||[];const cols=["reference","customer_email","product","package","amount","currency","status","fulfillment_status","created_at","delivered_at"];
+        const csv=[cols.join(","),...rows.map(row=>cols.map(key=>'"'+String(row[key]??"").replace(/"/g,'""')+'"').join(","))].join("\r\n");
+        const blob=new Blob([csv],{type:"text/csv;charset=utf-8"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="bhadex-plugs-orders.csv";a.click();URL.revokeObjectURL(url);message.textContent=rows.length+" order row(s) exported.";
+      }catch(e){message.textContent=e.message;}
+    });
+    async function loadCancellationRequests(){
+      const box=document.getElementById("adminCancellationList"),msg=document.getElementById("cancellationAdminMessage");box.replaceChildren();
+      try{const data=await request("/api/features/admin/cancellations"),items=data.requests||[];msg.textContent=items.length+" request(s).";
+        items.forEach(item=>{const card=document.createElement("article");card.className="inventory-item";const title=document.createElement("strong");title.textContent=item.order_reference+" · "+item.product+" · "+item.status;const body=document.createElement("p");body.textContent=item.customer_email+" — "+item.reason;card.append(title,body);
+          if(item.status==="PENDING"){["APPROVED","DECLINED"].forEach(status=>{const b=document.createElement("button");b.type="button";b.className="secondary";b.textContent=status;b.addEventListener("click",async()=>{try{await request("/api/features/admin/cancellations/"+item.id,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({status,note:"Reviewed by store administrator."})});loadCancellationRequests();}catch(e){msg.textContent=e.message;}});card.appendChild(b);});}
+          box.appendChild(card);});
+      }catch(e){msg.textContent=e.message;}
+    }
+    async function loadStockAlerts(){
+      const box=document.getElementById("adminStockList"),msg=document.getElementById("stockAdminMessage");box.replaceChildren();
+      try{const data=await request("/api/features/admin/stock-alerts"),items=data.alerts||[];msg.textContent=items.length+" signup(s).";
+        items.forEach(x=>{const p=document.createElement("p");p.className="inventory-item";p.textContent=x.product_name+" · "+x.email+" · "+new Date(x.created_at).toLocaleDateString();box.appendChild(p);});
+      }catch(e){msg.textContent=e.message;}
+    }
+    async function loadProductQuestions(){
+      const box=document.getElementById("adminQuestionsList"),msg=document.getElementById("questionsAdminMessage");box.replaceChildren();
+      try{const data=await request("/api/features/admin/questions"),items=data.questions||[];msg.textContent=items.length+" question(s).";
+        items.filter(x=>x.status==="PENDING").forEach(item=>{const card=document.createElement("article");card.className="inventory-item";const title=document.createElement("strong");title.textContent=item.product_name+" · "+item.customer_name;const q=document.createElement("p");q.textContent=item.question;const input=document.createElement("textarea");input.rows=3;input.placeholder="Write an approved answer";const b=document.createElement("button");b.type="button";b.className="secondary";b.textContent="Publish Answer";b.addEventListener("click",async()=>{try{await request("/api/features/admin/questions/"+item.id,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({status:"ANSWERED",answer:input.value})});loadProductQuestions();}catch(e){msg.textContent=e.message;}});const reject=document.createElement("button");reject.type="button";reject.className="secondary";reject.textContent="Reject";reject.addEventListener("click",async()=>{try{await request("/api/features/admin/questions/"+item.id,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({status:"REJECTED",answer:""})});loadProductQuestions();}catch(e){msg.textContent=e.message;}});card.append(title,q,input,b,reject);box.appendChild(card);});
+      }catch(e){msg.textContent=e.message;}
+    }
+    async function loadSecurityOverview(){
+      try{const data=await request("/api/features/admin/security");document.getElementById("securitySummary").textContent="Active admin sessions: "+data.activeSessions+". Review recent admin activity below.";
+        const box=document.getElementById("securityEvents");box.replaceChildren();(data.events||[]).slice(0,20).forEach(x=>{const p=document.createElement("p");p.className="inventory-item";p.textContent=x.action+" · "+x.details+" · "+new Date(x.created_at).toLocaleString();box.appendChild(p);});
+      }catch(e){document.getElementById("securitySummary").textContent=e.message;}
+    }
+    document.getElementById("refreshSecurity").addEventListener("click",loadSecurityOverview);
+
     // LOGIN
     loginForm.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -1379,6 +1476,7 @@
         await loadAdminReviews();
         await loadAdminSupport();
         await loadAdminChat();
+        await loadStoreOperations();
         startOrderPolling();
 
       } catch (error) {

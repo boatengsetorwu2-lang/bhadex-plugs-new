@@ -1308,3 +1308,17 @@ footer { border-color:rgba(255,255,255,.12) !important; }
 @media(prefers-reduced-motion:reduce) {
   .recommendation-card,.compare-choice { transition:none !important; }
 }
+
+/* STORE IMPROVEMENTS */
+.bundle-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-top:18px}
+.bundle-card,.feature-tool{padding:20px;border:1px solid rgba(255,255,255,.15);border-radius:18px;background:linear-gradient(145deg,rgba(255,255,255,.09),rgba(255,255,255,.025));backdrop-filter:blur(18px)}
+.bundle-card h3{margin:10px 0;color:#fff}.bundle-card p{color:#bbb;font-size:13px;line-height:1.6}.bundle-card a{color:#ff7180;font-weight:700}
+.question-form{display:grid;gap:10px;max-width:620px;margin:18px 0}
+.question-form input,.question-form select,.question-form textarea{width:100%;padding:13px;border:1px solid rgba(255,255,255,.18);border-radius:10px;background:#111;color:#fff}
+#publicQuestionsList{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin-top:18px}
+#currencyDisplay select{padding:12px;border-radius:10px;background:#111;color:#fff;border:1px solid #444}
+.feature-tool-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin:18px 0}
+.feature-tool{display:grid;gap:10px;align-content:start}.feature-tool h3{margin:0}.feature-tool textarea,.feature-tool input,.feature-tool select{width:100%;padding:11px;background:#101010;color:#fff;border:1px solid #444;border-radius:9px}
+.feature-inline{display:flex;gap:8px;flex-wrap:wrap}.feature-inline>*{flex:1;min-width:130px}
+#storeOperationsPanel h3{margin:22px 0 10px}
+@media(max-width:600px){.bundle-grid{grid-template-columns:1fr}.feature-tool-grid{grid-template-columns:1fr}}

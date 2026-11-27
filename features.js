@@ -36,6 +36,16 @@ async function sendSupportReplyEmail({ to, ticketReference, subject, reply, stat
   });
 }
 
+
+async function sendStockAvailableNotice(email, product) {
+  if (!process.env.RESEND_API_KEY || !process.env.RESEND_FROM_EMAIL) return;
+  const safeProduct=String(product).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  await axios.post("https://api.resend.com/emails",{
+    from:process.env.RESEND_FROM_EMAIL,to:[email],subject:"A BHADEX PLUGS product is available",
+    html:`<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;padding:24px"><h2>BHADEX PLUGS</h2><p>${safeProduct} is now listed as available. Visit the marketplace to review current options.</p><p><a href="${process.env.BASE_URL}/marketplace.html">Open Marketplace</a></p><p>If you no longer want these notices, contact store support.</p></div>`
+  },{headers:{Authorization:`Bearer ${process.env.RESEND_API_KEY}`,"Content-Type":"application/json"}});
+}
+
 module.exports = function createFeatureRouter({ pool, requireCustomer, requireAdmin }) {
   const router = express.Router();
 
@@ -860,6 +870,14 @@ module.exports = function createFeatureRouter({ pool, requireCustomer, requireAd
       );
       if (!result.rows.length) return res.status(404).json({ error: "Product not found." });
       await logAdminActivity(req, "Product updated", result.rows[0].name + " · " + availability + " · " + (active ? "Active" : "Hidden"));
+      if (availability === "AVAILABLE") {
+        const subscribers = await pool.query("SELECT email FROM product_stock_subscribers WHERE product_name=$1", [result.rows[0].name]);
+        for (const subscriber of subscribers.rows) {
+          try { await sendStockAvailableNotice(subscriber.email, result.rows[0].name); }
+          catch (emailError) { console.error("Back-in-stock email error:", emailError.response?.data || emailError.message); }
+        }
+        if (subscribers.rows.length) await pool.query("DELETE FROM product_stock_subscribers WHERE product_name=$1", [result.rows[0].name]);
+      }
       res.json({ product: result.rows[0] });
     } catch (error) {
       console.error("Product update error:", error.message);

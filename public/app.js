@@ -1555,6 +1555,7 @@ async function loadProductAvailability() {
     renderProducts();
     const recommendations = document.getElementById("personalizedRecommendations");
     if (recommendations) { recommendations.remove(); initializePersonalizedRecommendations(); }
+    initializeProductQuestions();
   } catch (error) {
     console.warn("Product availability could not be loaded:", error.message);
   }

@@ -1409,7 +1409,7 @@ function renderProducts() {
 
   productGrid.innerHTML = filteredProducts.map(product => {
     const packageOptions = product.prices.map((price, index) =>
-      `<option value="${index}">${packageNames[index]} - GH₵${price}</option>`
+      `<option value="${index}" data-ghs="${price}">${packageNames[index]} - GH₵${price}</option>`
     ).join("");
 
     const benefits = product.benefits.map(benefit =>

@@ -541,6 +541,7 @@ body {
     <a href="#reviews">Write a Review</a>
     <a href="#settings">Account Settings</a>
     <a href="#support">Support</a>
+    <a href="#cancellations">Cancellations</a>
   </nav>
 
   <!-- DASHBOARD STATISTICS -->
@@ -819,6 +820,19 @@ body {
       <a class="email-support" href="mailto:bhadexplugs@gmail.com">Email Support</a>
       <a class="whatsapp-support" href="https://wa.me/233552817566" target="_blank" rel="noopener noreferrer">WhatsApp Support</a>
     </div>
+  </section>
+
+
+  <section class="dashboard-card" id="cancellations">
+    <h2>Order Cancellation Requests</h2>
+    <p class="muted">Request a review before delivery. Submitting a request does not automatically cancel an order or issue a refund.</p>
+    <form id="cancellationRequestForm" style="display:grid;gap:10px;max-width:600px;">
+      <input id="cancelOrderReference" maxlength="100" placeholder="Paid order reference" required>
+      <textarea id="cancelReason" rows="3" maxlength="1000" minlength="10" placeholder="Why are you requesting cancellation? (at least 10 characters)" required></textarea>
+      <button class="primary-button" type="submit">Submit Cancellation Request</button>
+    </form>
+    <p id="cancellationCustomerMessage" class="muted" role="status"></p>
+    <div id="customerCancellationList"></div>
   </section>
 
   <!-- LOGOUT -->
@@ -1823,6 +1837,26 @@ document.getElementById("logoutButton").addEventListener("click", async () => {
 
 // START DASHBOARD
 loadAccount();
+
+async function loadCustomerCancellations(){
+  const box=document.getElementById("customerCancellationList"),message=document.getElementById("cancellationCustomerMessage");
+  if(!box)return;box.replaceChildren();
+  try{const data=await apiRequest("/api/features/customer/cancellations");const items=data.requests||[];
+    message.textContent=items.length?items.length+" request(s) found.":"No cancellation requests yet.";
+    items.forEach(item=>{const card=document.createElement("article");card.className="order";const title=document.createElement("strong");title.textContent=item.order_reference+" · "+item.status;
+      const reason=document.createElement("p");reason.textContent=item.reason;card.append(title,reason);
+      if(item.admin_note){const note=document.createElement("p");note.textContent="Store note: "+item.admin_note;card.appendChild(note);}box.appendChild(card);});
+  }catch(e){message.textContent=e.message;}
+}
+const cancellationForm=document.getElementById("cancellationRequestForm");
+if(cancellationForm)cancellationForm.addEventListener("submit",async event=>{
+  event.preventDefault();const button=cancellationForm.querySelector("button");button.disabled=true;
+  try{const result=await apiRequest("/api/features/customer/cancellations",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({reference:document.getElementById("cancelOrderReference").value.trim(),reason:document.getElementById("cancelReason").value.trim()})});
+    document.getElementById("cancellationCustomerMessage").textContent=result.message;cancellationForm.reset();await loadCustomerCancellations();
+  }catch(e){document.getElementById("cancellationCustomerMessage").textContent=e.message;}finally{button.disabled=false;}
+});
+loadCustomerCancellations();
+
 </script>
 
 </body>

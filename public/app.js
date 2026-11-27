@@ -1653,7 +1653,7 @@ if(productQuestionForm)productQuestionForm.addEventListener("submit",async event
 const stockAlertForm=document.getElementById("stockAlertForm");
 if(stockAlertForm)stockAlertForm.addEventListener("submit",async event=>{
   event.preventDefault();const button=stockAlertForm.querySelector("button");button.disabled=true;
-  try{const response=await fetch("/api/features/stock-alerts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({product:document.getElementById("stockAlertProduct").value,email:document.getElementById("stockAlertEmail").value})});const data=await response.json();if(!response.ok)throw new Error(data.error||"Unable to register.");document.getElementById("stockAlertMessage").textContent=data.message;stockAlertForm.reset();}
+  try{const response=await fetch("/api/features/stock-alerts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({product:document.getElementById("stockAlertProduct").value,email:document.getElementById("stockAlertEmail").value,consent:document.getElementById("stockAlertConsent").checked})});const data=await response.json();if(!response.ok)throw new Error(data.error||"Unable to register.");document.getElementById("stockAlertMessage").textContent=data.message;stockAlertForm.reset();}
   catch(e){document.getElementById("stockAlertMessage").textContent=e.message;}finally{button.disabled=false;}
 });
 

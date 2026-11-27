@@ -319,6 +319,21 @@ async function initializeDatabase() {
       ON live_chat_messages(conversation_id, created_at ASC);
   `);
 
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS customer_notifications (
+      id BIGSERIAL PRIMARY KEY,
+      customer_id BIGINT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+      title VARCHAR(140) NOT NULL,
+      message VARCHAR(500) NOT NULL,
+      notification_type VARCHAR(40) NOT NULL DEFAULT 'ORDER_UPDATE',
+      reference VARCHAR(100),
+      is_read BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS customer_notifications_customer_created_idx
+      ON customer_notifications(customer_id, created_at DESC);
+  `);
+
   console.log("BHADEX PLUGS database initialized.");
 }
 

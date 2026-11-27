@@ -1623,7 +1623,7 @@ async function initializeBhadexCurrency(){
   }catch(error){message.textContent="Only GHS display is available until the store configures exchange rates.";}
 }
 function refreshBhadexCurrencyLabels(){
-  document.querySelectorAll(".package-select option[data-ghs]").forEach(option=>{
+  document.querySelectorAll("option[data-ghs]").forEach(option=>{
     const price=Number(option.dataset.ghs);option.textContent=packageNames[Number(option.value)]+" - "+bhadexMoney(price);
   });
 }

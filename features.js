@@ -116,6 +116,58 @@ module.exports = function createFeatureRouter({ pool, requireCustomer, requireAd
   });
 
   // Customer features
+  // Customer notification centre
+  router.get("/customer/notifications", requireCustomer, async (req, res) => {
+    try {
+      const customer = await customerEmail(req);
+      if (!customer) return res.status(404).json({ error: "Customer account not found." });
+      const result = await pool.query(
+        `SELECT id, title, message, notification_type, reference, is_read, created_at
+         FROM customer_notifications WHERE customer_id = $1
+         ORDER BY created_at DESC LIMIT 100`,
+        [customer.id]
+      );
+      const unread = result.rows.filter(item => !item.is_read).length;
+      res.json({ notifications: result.rows, unread });
+    } catch (error) {
+      console.error("Customer notifications load error:", error.message);
+      res.status(500).json({ error: "Unable to load notifications." });
+    }
+  });
+
+  router.patch("/customer/notifications/read-all", requireCustomer, async (req, res) => {
+    try {
+      const customer = await customerEmail(req);
+      if (!customer) return res.status(404).json({ error: "Customer account not found." });
+      await pool.query(
+        "UPDATE customer_notifications SET is_read = TRUE WHERE customer_id = $1 AND is_read = FALSE",
+        [customer.id]
+      );
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Mark notifications read error:", error.message);
+      res.status(500).json({ error: "Unable to update notifications." });
+    }
+  });
+
+  router.patch("/customer/notifications/:id/read", requireCustomer, async (req, res) => {
+    try {
+      const customer = await customerEmail(req);
+      const id = Number(req.params.id);
+      if (!customer) return res.status(404).json({ error: "Customer account not found." });
+      if (!Number.isSafeInteger(id) || id < 1) return res.status(400).json({ error: "Invalid notification." });
+      const result = await pool.query(
+        "UPDATE customer_notifications SET is_read = TRUE WHERE id = $1 AND customer_id = $2 RETURNING id",
+        [id, customer.id]
+      );
+      if (!result.rows.length) return res.status(404).json({ error: "Notification not found." });
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Mark notification read error:", error.message);
+      res.status(500).json({ error: "Unable to update notification." });
+    }
+  });
+
   router.get("/customer/wishlist", requireCustomer, async (req, res) => {
     try {
       const customer = await customerEmail(req);

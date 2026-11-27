@@ -1434,7 +1434,7 @@
       }catch(e){msg.textContent=e.message;}
     }
     async function loadSecurityOverview(){
-      try{const data=await request("/api/features/admin/security");document.getElementById("securitySummary").textContent="Active admin sessions: "+data.activeSessions+". Review recent admin activity below.";
+      try{const data=await request("/api/features/admin/security");document.getElementById("securitySummary").textContent="Active application sessions: "+data.activeSessions+". Review recent admin activity below.";
         const box=document.getElementById("securityEvents");box.replaceChildren();(data.events||[]).slice(0,20).forEach(x=>{const p=document.createElement("p");p.className="inventory-item";p.textContent=x.action+" · "+x.details+" · "+new Date(x.created_at).toLocaleString();box.appendChild(p);});
       }catch(e){document.getElementById("securitySummary").textContent=e.message;}
     }

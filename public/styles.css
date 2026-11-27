@@ -1034,3 +1034,58 @@ textarea {
 @media(max-width:560px) {
   .announcement-bar { font-size: 12px; padding: 10px 48px 10px 12px; }
 }
+
+
+/* MOBILE FINISHING PASS — BHADEX PLUGS */
+html { max-width:100%; overflow-x:hidden; }
+body { max-width:100%; overflow-x:hidden; }
+@media (max-width: 560px) {
+  .topbar {
+    gap: 10px;
+    padding: 11px 14px;
+  }
+  .topbar nav {
+    display:flex;
+    flex-wrap:nowrap;
+    justify-content:flex-start;
+    width:100%;
+    max-width:100%;
+    overflow-x:auto;
+    overflow-y:hidden;
+    padding: 2px 1px 7px;
+    -webkit-overflow-scrolling:touch;
+    scrollbar-width:thin;
+  }
+  .topbar nav a {
+    flex:0 0 auto;
+    min-height:44px;
+    padding:10px 12px;
+  }
+  .hero-actions .btn { min-height:46px; }
+  .category-list {
+    flex-wrap:nowrap;
+    overflow-x:auto;
+    padding:2px 1px 8px;
+    -webkit-overflow-scrolling:touch;
+  }
+  .category { flex:0 0 auto; min-height:42px; }
+  #search, input, select, textarea { font-size:16px; }
+  .checkout-note { margin-top:38px; padding:22px 18px; }
+  .payment-container, .track-container, .status-container {
+    width:calc(100% - 28px);
+    padding:20px 16px;
+    margin:24px auto;
+    border-radius:15px;
+  }
+  .payment-container h1, .track-container h1, .status-container h1 {
+    font-size:clamp(23px,7vw,30px);
+    overflow-wrap:anywhere;
+  }
+  .announcement-bar { line-height:1.45; }
+}
+@media (max-width:360px) {
+  .brand { font-size:12px; }
+  .topbar nav a { font-size:10px; padding:9px 10px; }
+  .hero h1 { font-size:clamp(36px,12vw,48px); }
+  .trust-row { gap:10px; }
+}
